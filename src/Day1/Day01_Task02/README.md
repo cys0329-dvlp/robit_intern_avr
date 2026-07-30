@@ -94,7 +94,7 @@ void Timer0_PWM_Init(void) {
 
 | 정면 동작 모습 | 
 | :---: | :---: |
-| ![Hardware Setup](https://drive.google.com/file/d/1_FWkoJnIHqlHSSgurhoePAruJzNyUMhm/view?usp=drive_link) | 
+| (https://drive.google.com/file/d/1_FWkoJnIHqlHSSgurhoePAruJzNyUMhm/view?usp=drive_link) | 
 
 ---
 
