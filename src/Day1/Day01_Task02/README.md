@@ -47,7 +47,7 @@
 ## 4. 프로젝트 구조 (Directory Structure)
 > 구현부(.c), 선언부(.h)만 구조에 표기함.
 ```text
-├── Day00_Task00/
+├── Day01_Task02/
    ├── Day01_Task02.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
    ├── Day01_Task02.componentinfo.xml #IDE가 해당 디바이스 지원 팩을 프로젝트에 올바르게 연결·관리하도록 해주는 메타데이터 파일
    ├── Day01_Task02.cproj # MSBuild 기반 프로젝트 파일
