@@ -92,7 +92,7 @@ void Timer0_PWM_Init(void) {
 
 ### 동작 사진 / 영상
 
-| 정면 동작 모습 | 센서 측정 및 시리얼 출력 |
+| 정면 동작 모습 | 
 | :---: | :---: |
 | ![Hardware Setup](https://drive.google.com/file/d/1_FWkoJnIHqlHSSgurhoePAruJzNyUMhm/view?usp=drive_link) | 
 
