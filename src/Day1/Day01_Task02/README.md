@@ -7,12 +7,11 @@
 ---
 
 ## 1. 개요 (Overview)
-본 과제는 ATmega128 마이크로컨트롤러를 활용하여 주요 주변장치(Peripherals)를 제어하고 센서 데이터를 수신/처리하는 시스템을 구현하는 것을 목표로 함.
+본 과제는 ATmega128 마이크로컨트롤러를 활용하여 주요 주변장치(Peripherals)를 제어하고 스위치 입력에 따라 변화하는 LED의 모습을 확인하기 위한 과제이다.
 
 ### 핵심 목표
 * ATmega128 레지스터 설정을 통한 주변장치 제어
-* 센서 및 외부 모듈과의 통신 (USART / SPI / I2C 등) 및 데이터 처리
-* 타이머/카운터를 활용한 PWM 출력 및 인터럽트 제어
+* 스위치 INPUT과 LED OUTPUT의 회로 연결 확인 및 활용
 
 ---
 
@@ -24,7 +23,7 @@
 | **IDE / Compiler** | Microchip Studio 7.0 / Microchip AVR GCC |
 | **Flasher Tool** | USBISP / STK500 |
 | **언어** | C Language |
-| **주요 부품** | ATmega128 개발보드, DC/STEP 모터, ADC 센서 모듈 |
+| **주요 부품** | ATmega128 개발보드, LED(8개), push botton(4개) |
 
 ---
 
@@ -35,8 +34,8 @@
 ```text
 [ATmega128]                 [Target Component]
  PORTA (PA0 ~ PA7)   ----->   8-Bit LED
- PORTD (PD2, PD3)  ----->   pushbotton
- PORTE (PE4, PE5)    ----->   pushbotton
+ PORTD (PD2, PD3)  ----->   pushbotton 1,2
+ PORTE (PE4, PE5)    ----->   pushbotton 3,4
 ```
 
 ### 주요 회로 특징
@@ -53,13 +52,7 @@
 │   ├── timer. # 타이머/카운터 및 PWM 설정
 │   ├── uart.c # 시리얼 통신(UART) 드라이버
 │   └── adc.c # ADC 데이터 수신 드라이버
-├── include/
-│   ├── timer.h
-│   ├── uart.h
-│   └── adc.h
-├── docs/
-│   └── schematic.pdf # 회로도 파일
-└── README.md
+└── README.md #과제 보고서
 ```
 
 ---
