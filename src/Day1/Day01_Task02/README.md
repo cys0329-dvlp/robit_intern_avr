@@ -1,8 +1,8 @@
 # ATmega128 과제 및 프로젝트 템플릿
 
-> **광운대학교 (학부명)**  
-> **작성자:** (이름)
-> **제출일:** (날짜)
+> **광운대학교 로봇학부**  
+> **작성자:** 최윤서
+> **제출일:** 7/30
 
 ---
 
@@ -35,9 +35,8 @@
 ```text
 [ATmega128]                 [Target Component]
  PORTA (PA0 ~ PA7)   ----->   8-Bit LED
- PORTB Pin 4 (PB4)   ----->   PWM Motor Control (OC0)
- PE0 (RXD0) / PE1    ----->   UART Serial Communication
- ADC0 (PF0)          ----->   Analog Sensor Input
+ PORTD (PD2, PD3)  ----->   pushbotton
+ PORTE (PE4, PE5)    ----->   pushbotton
 ```
 
 ### 주요 회로 특징
@@ -95,7 +94,7 @@ void Timer0_PWM_Init(void) {
 
 | 정면 동작 모습 | 센서 측정 및 시리얼 출력 |
 | :---: | :---: |
-| ![Hardware Setup](개인_구글드라이브_링크_첨부) | ![Serial Monitor](개인_구글드라이브_링크_첨부) |
+| ![Hardware Setup](https://drive.google.com/file/d/1_FWkoJnIHqlHSSgurhoePAruJzNyUMhm/view?usp=drive_link) | 
 
 ---
 
