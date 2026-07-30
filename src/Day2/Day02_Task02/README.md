@@ -1,2 +1,2 @@
-시연 영상
+시연 영상입니다
 https://drive.google.com/file/d/18vsU2DhxNiKaoBW3TbsubzGz9MZOn3Lt/view?usp=drive_link
