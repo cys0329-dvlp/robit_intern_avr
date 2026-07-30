@@ -48,11 +48,11 @@
 > 구현부(.c), 선언부(.h)만 구조에 표기함.
 ```text
 ├── Day00_Task00/
-│   ├── main.c # 메인 제어 루프 및 시스템 초기화
-│   ├── timer. # 타이머/카운터 및 PWM 설정
-│   ├── uart.c # 시리얼 통신(UART) 드라이버
-│   └── adc.c # ADC 데이터 수신 드라이버
-└── README.md #과제 보고서
+   ├── Day01_Task02.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
+   ├── Day01_Task02.componentinfo.xml #IDE가 해당 디바이스 지원 팩을 프로젝트에 올바르게 연결·관리하도록 해주는 메타데이터 파일
+   ├── Day01_Task02.cproj # MSBuild 기반 프로젝트 파일
+   ├── main.c # 메인 제어 루프 및 시스템 초기화
+   └── README.md #과제 보고서
 ```
 
 ---
