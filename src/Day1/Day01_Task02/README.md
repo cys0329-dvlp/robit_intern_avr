@@ -59,21 +59,96 @@
 
 ## 5. 핵심 코드 및 레지스터 설정 (Key Implementation)
 
-### 타이머/카운터 및 PWM 초기화 예시 (`timer.c`)
+### 0.5S마다 깜빡임 + 내부 인터럽트 
 ```c
-#include <avr/io.h>
-#include <avr/interrupt.h>
-
-void Timer0_PWM_Init(void) {
-    // Fast PWM Mode, Non-inverting Mode 설정
-    TCCR0 |= (1 << WGM00) | (1 << WGM01); // Fast PWM Mode
-    TCCR0 |= (1 << COM01); // Non-inverting Mode
-    TCCR0 |= (1 << CS02) | (1 << CS01); // 분주비 256 설정
-    
-    DDRB |= (1 << PB4); // OC0 핀 출력 설정
+while(1)
+	{
+		if((!(PIND &(1<<PIND2))) && (!(PINE & (1<<PINE5))))
+		{
+			PORTA = 0X00;
+			_delay_ms(100);
+		}
+		else if (!(PINE & (1<<PINE5))) //SW1 눌렀을 떄 0~3 출력
+		{
+			PORTA = 0X0F;
+			_delay_ms(100);
+		}
+		else if (!(PIND &(1<<PIND2))) // SW2 눌렀을 때 4~7 출력
+		{
+			PORTA = 0XF0;
+			_delay_ms(100);
+		}
+		else
+		{
+			PORTA = 0XFF; //모두 끔
+			_delay_ms(500);
+			PORTA = 0X00; //모두 킴
+			_delay_ms(500);
+		}
+		
+	}
+```
+### 외부인터럽트3 -> 왼쪽에서 오른쪽으로 LED 이동(PD3 사용)
+```c
+ISR(INT3_vect)
+{
+	PORTA = 0X7F;
+	_delay_ms(100);
+	
+	PORTA = 0XBF;
+	_delay_ms(100);
+	
+	PORTA = 0XDF;
+	_delay_ms(100);
+	
+	PORTA = 0XEF;
+	_delay_ms(100);
+	
+	PORTA = 0XF7;
+	_delay_ms(100);
+	
+	PORTA = 0XFB;
+	_delay_ms(100);
+	
+	PORTA = 0XFD;
+	_delay_ms(100);
+	
+	PORTA = 0XFE;
+	_delay_ms(100);
 }
+
 ```
 
+### 외부인터럽트4 -> 오른쪽에서 왼쪽으로 LED 이동(PE4 사용)
+```c
+ISR(INT4_vect)
+{
+		PORTA = 0XFE;
+		_delay_ms(100);
+		
+		PORTA = 0XFD;
+		_delay_ms(100);
+		
+		PORTA = 0XFB;
+		_delay_ms(100);
+		
+		PORTA = 0XF7;
+		_delay_ms(100);
+		
+		PORTA = 0XEF;
+		_delay_ms(100);
+		
+		PORTA = 0XDF;
+		_delay_ms(100);
+		
+		PORTA = 0XBF;
+		_delay_ms(100);
+		
+		PORTA = 0X7F;
+		_delay_ms(100);
+	
+}
+```
 ---
 
 ## 6. 동작 설명 및 결과 (Results)
