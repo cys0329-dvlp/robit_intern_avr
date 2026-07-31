@@ -130,16 +130,16 @@ TWBR은 Master Mode에서 SCL 클럭 유동성을 결정하기 위한 bit rate g
 
 ### TWDR)
 
-Bit7:0 : I2C Bus에서 다음에 전송할 Data 또는 최근에 수신한 Data를 저장
-Transmit mode -> 다음 전송할 Data 저장
-Receive mode -> 최근에 수신한 Data 저장
+- Bit7:0 : I2C Bus에서 다음에 전송할 Data 또는 최근에 수신한 Data를 저장
+- Transmit mode -> 다음 전송할 Data 저장
+- Receive mode -> 최근에 수신한 Data 저장
 <img width="567" height="62" alt="image" src="https://github.com/user-attachments/assets/18ea72df-3fa9-43af-8ebf-74aab0b5271f" />
 
 ### TWAR)
 
-Bit7:1 : Slave device의 Slave adress를 저장
-Master Mode에서는 사용 X
-Bit0: Slave Mode에서 set된다면 general call에 응답함
+- Bit7:1 : Slave device의 Slave adress를 저장
+- Master Mode에서는 사용 X
+- Bit0: Slave Mode에서 set된다면 general call에 응답함
 <img width="567" height="62" alt="image" src="https://github.com/user-attachments/assets/8fd86df4-0a67-4a1e-8a8b-51dfbed1830c" />
 
 ## 5. Atmega128에서의 활용
