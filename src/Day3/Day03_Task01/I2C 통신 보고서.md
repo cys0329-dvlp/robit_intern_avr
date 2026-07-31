@@ -19,7 +19,8 @@ I2C 통신은 SDA, SCL 두 개의 전선으로 구성되며 풀업 저항을 통
 - SCL: 통신 속도와 기준 박자를 맞추는 클럭 신호선, 주로 마스터에서 만들어냄
 - Open-drain: Drain이 Output Pin에 연결된 회로 구조
 
-![alt text](image.png)
+<img width="293" height="83" alt="image" src="https://github.com/user-attachments/assets/1522f8cb-2c92-4225-abd8-3ae9fcd2e45c" />
+사진.1
 
 ### Data 통신 방법)
 
@@ -28,7 +29,8 @@ SDA 신호가 LOW로 떨어질 때 시작 신호라고 판단하여 SCL 클럭 �
 반복하여 SCL이 HIGH일 때 값을 측정한다.
 만약 모든 데이터의 전송이 끝난 후 SCL과 SDA가 모두 HIGH라면 Stop 신호를 만들어 정지한다.
 
-![alt text](image-1.png)
+<img width="342" height="136" alt="image" src="https://github.com/user-attachments/assets/cb550432-515d-43ab-94a6-15a68bc666ec" />
+사진.2
 
 ### Master와 Slave)
 
@@ -46,7 +48,8 @@ Start와 Stop 신호를 받을 때를 제외하고는 데이터가 전송될 때
 사진.2를 보면 SDA에 입력되는 Data가 대부분의 영역에서 동기됨을 알 수 있고
 Data가 바뀌었을 때 Data상태가 Chage하는 것을 알 수 있습니다.
 
-![alt text](image-2.png)
+<img width="321" height="165" alt="image" src="https://github.com/user-attachments/assets/b5905cdb-b817-4bcc-bca8-e56583c22a04" />
+사진.3
 
 ### Start/Stop 신호)
 
@@ -59,7 +62,8 @@ Repeated Start로 정의됩니다.
 Repeated Start가 실행된 후로도 Stop 비트가 나오기 전까지 Bus는 Busy한 상태이고
 이는 Start의 기능과 동일한 역할을 하게 됩니다.
 
-![alt text](image-3.png)
+<img width="306" height="82" alt="image" src="https://github.com/user-attachments/assets/0b492831-587f-4a42-b0af-7c2446065b6c" />
+사진.4
 
 ### Adress Packet Format)
 
@@ -98,7 +102,8 @@ Slave가 Master에게 데이터를 전송하는 Mode(Slave ->Master)
 Bits 7:0
 TWBR은 Master Mode에서 SCL 클럭 유동성을 결정하기 위한 bit rate generator Division factor을 선택하는 데에 사용된다.
 **bit rate: 1초 동안 전송되거나 처리되는 데이터의 양(비트 수)
-![alt text](image-4.png)
+<img width="505" height="56" alt="image" src="https://github.com/user-attachments/assets/f66ae143-da91-44ea-8ad2-7b34e48efd28" />
+
 ### TWCR)
 
 - Bit0: TWI Interrupt Enable, SREG의 I-bit와 TWIE에가 Set된 상태에서 TWINT flag가 High로 되면 TWI Interrupt Request가 활성화 된다.
@@ -114,25 +119,29 @@ TWBR은 Master Mode에서 SCL 클럭 유동성을 결정하기 위한 bit rate g
 - Bit6: Aknowledge pulse 발생을 제어
   if TWEA bit = 1 -> ACK pulse가 발생함
 - Bit7: TWI가 현재 작업을 끝내고 제어프로그램의 응답을 기대할 때 하드웨어에 의해 set된다.
-![alt text](image-5.png)
+<img width="526" height="59" alt="image" src="https://github.com/user-attachments/assets/1ccd5a5d-3443-46e8-b099-7ecb176fc318" />
+
 ### TWSR)
 
 - Bits 7:3: TWI 로직과 I2C Bus의 상태를 반영한다.
 - Bit2: Rserved Bit
 - Bit 1:0 : Read/Write가 가능하고 Bit Rate Prescaler를 제어한다.
-![alt text](image-6.png)
+<img width="567" height="63" alt="image" src="https://github.com/user-attachments/assets/69db13aa-f527-43dd-ab72-1d07457f1058" />
+
 ### TWDR)
 
 Bit7:0 : I2C Bus에서 다음에 전송할 Data 또는 최근에 수신한 Data를 저장
 Transmit mode -> 다음 전송할 Data 저장
 Receive mode -> 최근에 수신한 Data 저장
-![alt text](image-7.png)
+<img width="567" height="62" alt="image" src="https://github.com/user-attachments/assets/18ea72df-3fa9-43af-8ebf-74aab0b5271f" />
+
 ### TWAR)
 
 Bit7:1 : Slave device의 Slave adress를 저장
 Master Mode에서는 사용 X
 Bit0: Slave Mode에서 set된다면 general call에 응답함
-![alt text](image-8.png)
+<img width="567" height="62" alt="image" src="https://github.com/user-attachments/assets/8fd86df4-0a67-4a1e-8a8b-51dfbed1830c" />
+
 ## 5. Atmega128에서의 활용
 
 ### 사용법)
