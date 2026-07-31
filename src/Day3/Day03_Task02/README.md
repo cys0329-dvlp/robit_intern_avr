@@ -81,110 +81,115 @@ https://velog.io/@skullant16/ATmega128UART-%ED%86%B5%EC%8B%A0
 
 ## 5. 핵심 코드 및 레지스터 설정 (Key Implementation)
 
-### 0.5S마다 깜빡임 + 내부 인터럽트 
+### 입력 받은 값에 따라 LED 출 
 ```c
-while(1)
-	{
-		if((!(PIND &(1<<PIND2))) && (!(PINE & (1<<PINE5))))
+if(input_data== '0')
 		{
-			PORTA = 0X00;
+			PORTA = 0X7F;
+			UART_transmit_string("0 LED on\r");
 			_delay_ms(100);
 		}
-		else if (!(PINE & (1<<PINE5))) //SW1 눌렀을 떄 0~3 출력
+		else if(input_data == '1')
 		{
-			PORTA = 0X0F;
+			PORTA = 0XBF;
+			UART_transmit_string("1 LED on\r");
 			_delay_ms(100);
 		}
-		else if (!(PIND &(1<<PIND2))) // SW2 눌렀을 때 4~7 출력
+		else if(input_data == '2')
 		{
-			PORTA = 0XF0;
+			PORTA = 0XDF;
+			UART_transmit_string("2 LED on\r");
 			_delay_ms(100);
 		}
-		else
+		else if(input_data == '3')
 		{
-			PORTA = 0XFF; //모두 끔
-			_delay_ms(500);
-			PORTA = 0X00; //모두 킴
-			_delay_ms(500);
+			PORTA = 0XEF;
+			UART_transmit_string("3 LED on\r");
+			_delay_ms(100);
 		}
-		
-	}
+		else if(input_data == '4')
+		{
+			PORTA = 0XF7;
+			UART_transmit_string("4 LED on\r");
+			_delay_ms(100);
+		}
+		else if(input_data == '5')
+		{
+			PORTA = 0XFB;
+			UART_transmit_string("5 LED on\r");
+			_delay_ms(100);
+		}
+		else if(input_data == '6')
+		{
+			PORTA = 0XFD;
+			UART_transmit_string("6 LED on\r");
+			_delay_ms(100);
+		}
+		else if(input_data == '7')
+		{
+			PORTA = 0XFE;
+			UART_transmit_string("7 LED on\r");
+			_delay_ms(100);
+		}
+		else if(input_data == '8')
+		{
+			PORTA = (PORTA >> 1)| 0b10000000;
+			UART_transmit_string("LEFT\r");
+			_delay_ms(100);
+		}
 ```
-### 외부인터럽트3 -> 왼쪽에서 오른쪽으로 LED 이동(PD3 사용)
+### 기능1. 8입력되면 좌측으로 이동 후 LEFT 출력 
 ```c
-ISR(INT3_vect)
-{
-	PORTA = 0X7F;
-	_delay_ms(100);
-	
-	PORTA = 0XBF;
-	_delay_ms(100);
-	
-	PORTA = 0XDF;
-	_delay_ms(100);
-	
-	PORTA = 0XEF;
-	_delay_ms(100);
-	
-	PORTA = 0XF7;
-	_delay_ms(100);
-	
-	PORTA = 0XFB;
-	_delay_ms(100);
-	
-	PORTA = 0XFD;
-	_delay_ms(100);
-	
-	PORTA = 0XFE;
-	_delay_ms(100);
-}
+else if(input_data == '8')
+		{
+			PORTA = (PORTA >> 1)| 0b10000000;
+			UART_transmit_string("LEFT\r");
+			_delay_ms(100);
+		}
 
 ```
 
-### 외부인터럽트4 -> 오른쪽에서 왼쪽으로 LED 이동(PE4 사용)
+### 기능2. 9입력되면 우측으로 이동 후 RIGHT 출력 
 ```c
-ISR(INT4_vect)
-{
-		PORTA = 0XFE;
-		_delay_ms(100);
-		
-		PORTA = 0XFD;
-		_delay_ms(100);
-		
-		PORTA = 0XFB;
-		_delay_ms(100);
-		
-		PORTA = 0XF7;
-		_delay_ms(100);
-		
-		PORTA = 0XEF;
-		_delay_ms(100);
-		
-		PORTA = 0XDF;
-		_delay_ms(100);
-		
-		PORTA = 0XBF;
-		_delay_ms(100);
-		
-		PORTA = 0X7F;
-		_delay_ms(100);
-	
-}
+else if(input_data == '9')
+		{
+			PORTA = (PORTA << 1)| 0b00000001;
+			UART_transmit_string("RIGHT\r");
+			_delay_ms(100);
+		}
+
+```
+
+### LED 우측, 좌측으로 옮기기
+```c
+else if(input_data == '8')
+		{
+			PORTA = (PORTA >> 1)| 0b10000000;
+			UART_transmit_string("LEFT\r");
+			_delay_ms(100);
+		}
+		else if(input_data == '9')
+		{
+			PORTA = (PORTA << 1)| 0b00000001; 
+			UART_transmit_string("RIGHT\r");
+			_delay_ms(100);
+		}
 ```
 ---
 
 ## 6. 동작 설명 및 결과 (Results)
 
 ### 동작 시나리오
-1. 기본 상태: 0.5S마다 깜빡임
-2. PD2 눌리면 LED4~7 출력, PE5 눌리면 LED0~3 출력 (내부 인터럽트)
-3. PD3 눌리면 왼쪽에서 오른쪽으로 LED 하나 씩 이동 (외부 인터럽트)
-4. PE4 눌리면 오른쪽에서 왼쪽으로 LED 하나 씩 이동 (외부 인터럽트)
+1. 기본 상태: LED 모두 꺼짐 상태. 
+2. 시리얼 통신에 입력하는 값(0~7)에 따라서 LED 하나씩 켜짐(중첩 안됨)
+ex) 0 누르면 0번 째 LED 출력, 4누르면 4번 때 LED 출력
+4. 시리얼 통신에 8입력 시 좌측, 9입력 시 LED 하나씩 이동
+5. 지정된 스위치를 누르면 INT3 발생시켜 RESET 출력 후 초기상태로 돌아감
 
 ### 동작 사진 / 영상
 
 | 정면 동작 모습 | 
-| (https://drive.google.com/file/d/1tHC01KBqHPHXJxw1AKZOmwz98_phY6b1/view?usp=drive_link) | 
+| (https://drive.google.com/drive/u/1/folders/19jqw5NYIy8i_XBwmXw1kS9wgt5maQtsO) | 
 
 ---
 
