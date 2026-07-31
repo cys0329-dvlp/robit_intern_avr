@@ -168,7 +168,7 @@ ex) 0 누르면 0번 째 LED 출력, 4누르면 4번 때 LED 출력
 ### 동작 사진 / 영상
 
 | 정면 동작 모습 | 
-| (https://drive.google.com/drive/u/1/folders/19jqw5NYIy8i_XBwmXw1kS9wgt5maQtsO) | 
+| https://drive.google.com/file/d/1eq6jIFhQi9UHLastT5AHoDD_CUi4hLQJ/view?usp=drive_link | 
 
 ---
 
