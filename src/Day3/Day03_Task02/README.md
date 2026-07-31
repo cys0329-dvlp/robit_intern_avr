@@ -61,7 +61,9 @@ https://velog.io/@skullant16/ATmega128UART-%ED%86%B5%EC%8B%A0
 
 ### 주요 회로 특징
 * **전원:** 5V DC 안정화 전원 공급
-* **주의사항:** ISP 다운로드 시 SPI 핀 타겟 전원 및 리셋 회로 간섭 주의 / atmelstudio chip 프로그램과 시리얼통신 1.9b 프로그램을 동시에 띄워놓으면 컴파일 혹은 Connect 에러 발생
+* **주의사항:**
+	ISP 다운로드 시 SPI 핀 타겟 전원 및 리셋 회로 간섭 주의
+	atmelstudio chip 프로그램과 시리얼통신 1.9b 프로그램을 동시에 띄워놓으		면 컴파일 혹은 Connect 에러 발생
 
 ---
 
