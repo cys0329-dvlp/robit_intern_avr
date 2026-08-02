@@ -57,62 +57,19 @@ PORTD (PD3)  ----->   TXD(출력)
 
 ## 5. 핵심 코드 및 레지스터 설정 (Key Implementation)
 
-### 입력 받은 값에 따라 LED 출 
+### 
 ```c
-if(input_data== '0')
-		{
-			PORTA = 0X7F;
-			UART_transmit_string("0 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '1')
-		{
-			PORTA = 0XBF;
-			UART_transmit_string("1 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '2')
-		{
-			PORTA = 0XDF;
-			UART_transmit_string("2 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '3')
-		{
-			PORTA = 0XEF;
-			UART_transmit_string("3 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '4')
-		{
-			PORTA = 0XF7;
-			UART_transmit_string("4 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '5')
-		{
-			PORTA = 0XFB;
-			UART_transmit_string("5 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '6')
-		{
-			PORTA = 0XFD;
-			UART_transmit_string("6 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '7')
-		{
-			PORTA = 0XFE;
-			UART_transmit_string("7 LED on\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '8')
-		{
-			PORTA = (PORTA >> 1)| 0b10000000;
-			UART_transmit_string("LEFT\r");
-			_delay_ms(100);
-		}
+int main(void)
+{
+	DDRD |= (1 << PD3);   // PD3(TX)만 출력으로 설정
+	PORTD |= (1 << PD3);  // 기본 상태 = HIGH
+
+	while (1)
+	{
+		TX_Start();
+		_delay_ms(1000); // 1초마다 보내기
+	}
+}
 ```
 ### 기능1. 8입력되면 좌측으로 이동 후 LEFT 출력 
 ```c
