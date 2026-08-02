@@ -63,7 +63,8 @@
 
 구형 칩(ATmega128 등)은 TCCR0 레지스터 하나에, 신형 칩(ATmega328/2560 등)은 TCCR0A·TCCR0B 두 개로 나뉘어 있지만 원리는 같습니다.
 
-![alt text](image.png)
+<img width="640" height="212" alt="image" src="https://github.com/user-attachments/assets/3168d3b0-7346-4a28-a373-c126a1359de7" />
+
 
 ---
 
