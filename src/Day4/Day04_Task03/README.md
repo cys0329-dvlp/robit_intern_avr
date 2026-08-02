@@ -7,11 +7,12 @@
 ---
 
 ## 1. 개요 (Overview)
-본 과제는 ATmega128 마이크로컨트롤러와 UART를 활용하여 시리얼 통신 과정을 공부하고 제어하며 키보드 입력에 따라 변화하는 서보모터의 모습을 확인하기 위한 과제이더.
+본 과제는 ATmega128 마이크로컨트롤러와 PSD 센서의 작동 원리를 공부하여 
+ADC 값을 cm로 환산하여 출력한다.
 
 ### 핵심 목표
-* ATmega128 레지스터 설정과 UART 통신을 통한 LED 제어
-* UART 활성화 방법과 송수신 방법, UART를 통한 서보모터 제어
+* PSD센서의 아날로그 값을 디지털 값으로 환산
+* ADC 환산 결과를 cm로 다시 환산
 
 ---
 
@@ -23,7 +24,7 @@
 | **IDE / Compiler** | Microchip Studio 7.0 / Microchip AVR GCC |
 | **Flasher Tool** | USBISP / STK500 / UART|
 | **언어** | C Language |
-| **주요 부품** | ATmega128 개발보드 |
+| **주요 부품** | ATmega128 개발보드, PSD 센서|
 
 ---
 
@@ -162,15 +163,12 @@ unsigned char Psd_AdcToDist(unsigned int adc, unsigned int *dist)
 ## 6. 동작 설명 및 결과 (Results)
 
 ### 동작 시나리오
-1. 기본 상태: servo 90도 상태
-2. 시리얼 통신에 입력하는 값(0~180)에 servo angle 변경
-3. 시리얼 통신에 입력하는 값이 0 미만, 180 초과 혹은 문자라면 오류 메시지 출력
-5. reset botton 누르면 90도 초기 상태로 초기화
+1. UART 통신 연결 시 ADC 출력 값과 cm 값 출력
 
 ### 동작 사진 / 영상
 
 | 정면 동작 모습 | 
-|https://drive.google.com/file/d/1E4AfsIyCXFuxQcfJjwJicNj6d98FCgY6/view?usp=drive_link | 
+|https://drive.google.com/file/d/1m1t8kp5E1JLhBhN6H7uMSqVJi4YNbkVF/view?usp=drive_link | 
 
 ---
 
@@ -186,10 +184,3 @@ unsigned char Psd_AdcToDist(unsigned int adc, unsigned int *dist)
 
 ### AI 활용 및 검증 원칙
 1. **학습 주도성:** 코드의 핵심 제어 로직 설계는 직접 작성하였으며, AI는 막히는 문제점에 관한 힌트를 간접적으로 받았고 정답과 코드를 대신 작성해주지 말라고 명령함
-
-   
-참고) 
-```c
-void Servo_Move(int angle) 
-```
-는 google 자료에 있는 예제 참고했습니다.
