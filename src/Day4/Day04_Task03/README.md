@@ -23,7 +23,7 @@
 | **IDE / Compiler** | Microchip Studio 7.0 / Microchip AVR GCC |
 | **Flasher Tool** | USBISP / STK500 / UART|
 | **언어** | C Language |
-| **주요 부품** | ATmega128 개발보드, servo motor(SG90)|
+| **주요 부품** | ATmega128 개발보드 |
 
 ---
 
@@ -33,7 +33,7 @@
 
 ```text
 [ATmega128]                 [Target Component]
- PORTF (PF7)   ----->   servo motor
+ PORTF (PF1)   ----->   PSD signal pin
 ```
 
 ### 주요 회로 특징
@@ -47,9 +47,9 @@
 ## 4. 프로젝트 구조 (Directory Structure)
 > 구현부(.c), 선언부(.h)만 구조에 표기함.
 ```text
-├── Day04_Task05/
-   ├── Day04_Task05.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
-   ├── Day04_Task05.cproj # MSBuild 기반 프로젝트 파일
+├── Day04_Task03/
+   ├── Day04_Task03.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
+   ├── Day04_Task03.cproj # MSBuild 기반 프로젝트 파일
    ├── main.c # 메인 제어 루프 및 시스템 초기화
    └── README.md #과제 보고서
 ```
@@ -58,88 +58,103 @@
 
 ## 5. 핵심 코드 및 레지스터 설정 (Key Implementation)
 
-### servo motor 초기화 및 입력 값에 따른 angle 변화
+### ADC 초기화 및 읽기
 ```c
-	Servo_Move(90); // 처음 시작하거나 리셋하면 초기 자세로
-	while (1)
+	void Adc_Init(void)
+{
+	DDRF &= ~(1 << PF1);   //PF1 입력
+	PORTF &= ~(1 << PF1);  //내부 풀업 OFF
+	
+	ADMUX = (1 << REFS0) | (PSD_ADC_CH & 0X1F);  //AVCC 기준, ADC1
+	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);  //128분주 -> 125kHz
+}
+
+unsigned int Adc_Read(void)
+{
+	ADCSRA |= (1 << ADSC);
+	while(ADCSRA & (1 << ADSC));
+	return ADCW;
+}
+
+```
+
+### 타이머 인터럽트로 샘플링/출력 타이밍 만들기
+```c
+ISR(TIMER1_COMPA_vect)
+{
+	static unsigned int sample_cnt = 0;
+	static unsigned int print_cnt = 0;
+	
+	g_ms++;
+	
+	if(++sample_cnt >= SAMPLE_PERIOD_MS)
 	{
-		int input_data = Uart_Getint(); //숫자 받기
+		sample_cnt = 0;
+		g_do_sample = 1;
+	}
+	if(++print_cnt >= PRINT_PERIOD_MS)
+	{
+		print_cnt = 0;
+		g_do_print = 1;
+	}
+}
+
+```
+
+### 스파이크 제거를 위한 중앙값 필터
+```c
+unsigned int Median_Of(unsigned int *src, unsigned char n)
+{
+	unsigned int buf[MEDIAN_N];
+	unsigned char i, j;
+	unsigned int key;
+	
+	for(i = 0; i < n; i++) buf[i] = src[i];
+	
+	for(i = 1; i < n; i++)
+	{
+		key = buf[i];
+		j = i;
+		while(j > 0 && buf[j-1] > key)
+		{
+			buf[j] = buf[j-1];
+			j--;
+		}
+		buf[j] = key;
+	}
+	
+	return buf[n/2];
+}
+```
+
+### ADC값을 거리로 환산 (예외처리 + 선형보간)
+```c
+unsigned char Psd_AdcToDist(unsigned int adc, unsigned int *dist)
+{
+	unsigned char i;
+	unsigned int a0, a1, d0, d1;
+	
+	*dist = 0;
+	
+	if(adc < ADC_DISCONNECT) return PSD_DISCONNECTED;
+	if(adc < ADC_FAR_LIMIT) return PSD_TOO_FAR;
+	if(adc > ADC_NEAR_LIMIT) return PSD_TOO_CLOSE;
+	
+	for(i = 0; i < LUT_SIZE - 1; i++)
+	{
+		a0 = pgm_read_word(&psd_lut[i].adc);
+		a1 = pgm_read_word(&psd_lut[i+1].adc);
 		
-		if(0<=input_data && input_data <=180)
+		if(adc >= a0 && adc <= a1)
 		{
-			Servo_Move(input_data);
-			_delay_ms(1000);
-		}
-		else if(input_data < 0 || 180 < input_data )
-		{
-			UART_transmit_string("ERROR. angle can be between 0 and 180\r");
-		}
-		else
-		{
-			UART_transmit_string("ERROR. angle can be between 0 and 180\r");
+			d0 = pgm_read_word(&psd_lut[i].dist);
+			d1 = pgm_read_word(&psd_lut[i+1].dist);
+			*dist = (unsigned int)(d0 - (unsigned int)(((unsigned long)(d0-d1) * (adc-a0)) / (a1-a0)));
+			return PSD_OK;
 		}
 	}
-
-```
-
-### 문자를 숫자로 바꾸어 입력해주는 함수(엔터를 누르면 값 입력 끝)
-```c
-int Uart_Getint(void)
-{
-	unsigned char ch;
-	int result = 0;
-	int started = 0;  // 숫자를 하나라도 받았는지 체크
-
-	while (1)
-	{
-		while(!(UCSR0A & (1 << RXC0))); // 데이터 수신 대기
-		ch = UDR0;
-
-		if (ch == '\r' || ch == '\n')
-		{
-			if (started)
-			{
-				break;      // 숫자 입력 후 엔터 -> 정상 종료
-			}
-			else
-			{
-				continue;   // 숫자 없이 들어온 개행문자는 그냥 무시(잔여 \n 처리)
-			}
-			
-		}
-		else if (ch >= '0' && ch <= '9')
-		{
-			result = result * 10 + (ch - '0'); // ch 아스키값에서 0의 아스키 값인 48을 빼서 진짜 입력한 숫자로 인식되게 함
-			started = 1;
-		}
-		else
-		{
-			return -1;
-			break;
-		}
-	}
-
-	return result;
-}
-
-
-```
-
-### 오류 메시지 출력을 위한 함수
-```c
-void Uart_Putch(unsigned char PutData)
-{
-	while(!(UCSR0A & (1 << UDRE0))); // UCSR0A의 Bit5 활성화 -> 새로운 Data를 입력받을 준비가 됐다는 flag (Datasheet 189P 참고)
-	UDR0 = PutData; //받은 값을 입력 buffer에 넣음
-}
-
-void UART_transmit_string(char *str)
-{
-	while(*str != '\0') // \0이면 while 문 중지
-	{
-		Uart_Putch(*str);
-		str++;
-	}
+	
+	return PSD_TOO_FAR;
 }
 ```
 ---
