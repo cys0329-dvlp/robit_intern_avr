@@ -46,9 +46,9 @@ PORTD (PD3)  ----->   TXD(출력)
 ## 4. 프로젝트 구조 (Directory Structure)
 > 구현부(.c), 선언부(.h)만 구조에 표기함.
 ```text
-├── Day03_Task02/
-   ├── Day03_Task02.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
-   ├── Day03_Task02.cproj # MSBuild 기반 프로젝트 파일
+├── Day03_Task04/
+   ├── Day03_Task04.atsln #Atmel Studio(현재는 Microchip Studio) 솔루션 파일
+   ├── Day03_Task04.cproj # MSBuild 기반 프로젝트 파일
    ├── main.c # 메인 제어 루프 및 시스템 초기화
    └── README.md #과제 보고서
 ```
