@@ -57,7 +57,7 @@ PORTD (PD3)  ----->   TXD(출력)
 
 ## 5. 핵심 코드 및 레지스터 설정 (Key Implementation)
 
-### 
+### PD3 HIGH 설정 및 Hello World! 출력
 ```c
 int main(void)
 {
@@ -71,58 +71,45 @@ int main(void)
 	}
 }
 ```
-### 기능1. 8입력되면 좌측으로 이동 후 LEFT 출력 
+### 문자열 출력 함수
 ```c
-else if(input_data == '8')
+void Putch(char str)
+{
+	PORTD &= ~(1 << PD3); // START BIT: LOW
+	Bit_Delay(); 
+
+	// 데이터 8비트
+	for (int i = 0; i < 8; i++)
+	{
+		if (str & 0x01)
 		{
-			PORTA = (PORTA >> 1)| 0b10000000;
-			UART_transmit_string("LEFT\r");
-			_delay_ms(100);
+			PORTD |= (1 << PD3);
+		}
+		else
+		{
+			PORTD &= ~(1 << PD3);
 		}
 
-```
+		Bit_Delay();
+		str >>= 1; // 비트 한칸씩 옮기기(str = str >>1 이랑 똑같음)
+	}
 
-### 기능2. 9입력되면 우측으로 이동 후 RIGHT 출력 
-```c
-else if(input_data == '9')
-		{
-			PORTA = (PORTA << 1)| 0b00000001;
-			UART_transmit_string("RIGHT\r");
-			_delay_ms(100);
-		}
+	// STOP BIT: HIGH
+	PORTD |= (1 << PD3);
+	Bit_Delay();
+}
 
-```
-
-### LED 우측, 좌측으로 옮기기
-```c
-else if(input_data == '8')
-		{
-			PORTA = (PORTA >> 1)| 0b10000000;
-			UART_transmit_string("LEFT\r");
-			_delay_ms(100);
-		}
-		else if(input_data == '9')
-		{
-			PORTA = (PORTA << 1)| 0b00000001; 
-			UART_transmit_string("RIGHT\r");
-			_delay_ms(100);
-		}
-```
 ---
 
 ## 6. 동작 설명 및 결과 (Results)
 
 ### 동작 시나리오
-1. 기본 상태: LED 모두 꺼짐 상태. 
-2. 시리얼 통신에 입력하는 값(0~7)에 따라서 LED 하나씩 켜짐(중첩 안됨)
-ex) 0 누르면 0번 째 LED 출력, 4누르면 4번 때 LED 출력
-4. 시리얼 통신에 8입력 시 좌측, 9입력 시 LED 하나씩 이동
-5. 지정된 스위치를 누르면 INT3 발생시켜 RESET 출력 후 초기상태로 돌아감
+1. 시작하면 1초마다 터미널에 Hello World! 출력
 
 ### 동작 사진 / 영상
 
 | 정면 동작 모습 | 
-| https://drive.google.com/file/d/1eq6jIFhQi9UHLastT5AHoDD_CUi4hLQJ/view?usp=drive_link | 
+| https://drive.google.com/file/d/1WbQJWqZgiRy8n6ml1X8RlfRzZWhX7JGW/view?usp=drive_link | 
 
 ---
 
@@ -131,21 +118,8 @@ ex) 0 누르면 0번 째 LED 출력, 4누르면 4번 때 LED 출력
 
 | 도구명 (Tool) | 활용 영역 | 세부 사용 목적 및 내용 |
 | :--- | :--- | :--- |
-| **Chat GPT** | 명령어 존재 여부 | - 시리얼 통신 화면 리셋 관련 명령어가 존재하는지 질문했고 존재하지않는다는 답을 받았습니다.
-| **Chat GPT** | 시리얼 입력값 중복 문제 | - 처음엔 아래 코드와 같이 작성했습니다. GPT에게 정답을 절대 알려주지말고 힌트를 달라고했더니 함수 반환값을 문자와 여러번 비교하면 정상작동은하지만 원하는 결과가 출력되지 않을 것이라는 답변을 받았습니다. 
-```C
-while (1)
-	{
-		char recvData = Uart_Getch();
-		if(UART_transmit_string(char *str) == 'a')
-		{
-			PORTA = 0X07;
-			_delay_ms(100);
-		}
-	}
-```
+| **Claude** | 보드레이트 계산 | - 계산해봤을 때 delay 104로 하면 되겠다해서 했는데 1초마다 작동을 안해서 AI에게 물어본 결과 밀리세컨드가 아니라 마이크로세컨드인 us를 써야한다는 답변을 받았습니다.
 
 ### AI 활용 및 검증 원칙
-1. **학습 주도성:** 코드의 핵심 제어 로직 설계는 직접 작성하였으며, AI는 막히는 문제점에 관한 힌트를 간접적으로 받았고 정답과 코드를 대신 작성해주지 말라고 명령함
-
+1. **학습 주도성:** 코드의 핵심 제어 로직 설계는 직접 작성하였으며, 절대 코드를 직접 짜달라고 하지않았습니다. 
 
