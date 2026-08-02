@@ -2,7 +2,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#define Bit_Delay() _delay_us(104) // 16,000,000 / 9600 ≈ 1667 cycle → 약 104us
+#define Bit_Delay() _delay_us(104) //16000000 / 9600 = 약 1667 → 약 104us
 
 void Putch(char c);
 void TX_Start(void);
@@ -56,7 +56,7 @@ void Putch(char str)
 		str >>= 1; // 비트 한칸씩 옮기기(str = str >>1 이랑 똑같음)
 	}
 
-	// 스톱 비트: HIGH
+	// // STOP BIT: HIGH
 	PORTD |= (1 << PD3);
 	Bit_Delay();
 }
