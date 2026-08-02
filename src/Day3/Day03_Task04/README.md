@@ -98,7 +98,7 @@ void Putch(char str)
 	PORTD |= (1 << PD3);
 	Bit_Delay();
 }
-
+```
 ---
 
 ## 6. 동작 설명 및 결과 (Results)
