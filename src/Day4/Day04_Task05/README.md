@@ -171,6 +171,8 @@ void UART_transmit_string(char *str)
 
 ### AI 활용 및 검증 원칙
 1. **학습 주도성:** 코드의 핵심 제어 로직 설계는 직접 작성하였으며, AI는 막히는 문제점에 관한 힌트를 간접적으로 받았고 정답과 코드를 대신 작성해주지 말라고 명령함
+
+   
 참고) 
 ```c
 void Servo_Move(int angle) 
