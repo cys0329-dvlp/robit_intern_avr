@@ -25,6 +25,7 @@
 ### 1-2. 레지스터 설명
 
 - **TCCR0 (Timer/Counter Control Register0)**
+<img width="658" height="92" alt="image" src="https://github.com/user-attachments/assets/e66cf219-a77e-4f60-8172-bf948f9dd9e5" />
 
     **Bit7 - FOC0 (Force Output Compare)**:
     - PWM모드가 아닌 경우에만 유효
@@ -36,43 +37,11 @@
     - Timer/Counter의 동작 모드(카운팅 방식, TOP 값, OCR0 갱신 시점)를 결정하는 비트
     - WGM01은 Bit3, WGM00은 Bit6에 위치 (두 비트가 레지스터 상에서 서로 떨어져 있음에 주의)
 
-    | Mode | WGM01 | WGM00 | 동작 모드 | TOP | OCR0 갱신 시점 | TOV0 Set 시점 |
-    | :--: | :--: | :--: | :--- | :--: | :--: | :--: |
-    | 0 | 0 | 0 | Normal | 0xFF | 즉시 | MAX |
-    | 1 | 0 | 1 | PWM, Phase Correct | 0xFF | TOP | BOTTOM |
-    | 2 | 1 | 0 | CTC | OCR0 | 즉시 | MAX |
-    | 3 | 1 | 1 | Fast PWM | 0xFF | TOP | MAX |
 
     **Bit5,4 - COM01~00 (Compare Match Output Mode)**:
     - OC0 핀의 동작을 설정하는 비트
-    - PWM 모드가 아닌 경우, Fast PWM인 경우, Phase Correct PWM인 경우 각각 다른 표를 따른다
+    - PWM 모드가 아닌 경우, Fast PWM인 경우, Phase Correct PWM인 경우 각각 설정해야하는 비트가 달라진다
 
-    *① Non-PWM 모드 (Normal, CTC)*
-
-    | COM01 | COM00 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC0 연결 안 함(일반 포트로 동작) |
-    | 0 | 1 | Compare Match 시 OC0 토글 |
-    | 1 | 0 | Compare Match 시 OC0 Clear |
-    | 1 | 1 | Compare Match 시 OC0 Set |
-
-    *② Fast PWM 모드*
-
-    | COM01 | COM00 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC0 연결 안 함 |
-    | 0 | 1 | 예약(사용 안 함) |
-    | 1 | 0 | 비반전(Non-inverting): Compare Match 시 Clear, BOTTOM에서 Set |
-    | 1 | 1 | 반전(Inverting): Compare Match 시 Set, BOTTOM에서 Clear |
-
-    *③ Phase Correct PWM 모드*
-
-    | COM01 | COM00 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC0 연결 안 함 |
-    | 0 | 1 | 예약(사용 안 함) |
-    | 1 | 0 | 비반전: Up-counting 중 Compare Match 시 Clear, Down-counting 중 Set |
-    | 1 | 1 | 반전: Up-counting 중 Compare Match 시 Set, Down-counting 중 Clear |
 
     **Bit2:0 - CS02~00 (Clock Select)**:
     - Timer/Counter0의 클럭 소스(prescaler 분주비)를 결정
@@ -80,6 +49,7 @@
     - clkT0S: Timer/Counter0의 클럭 소스(내부 clkI/O 또는 TOSC1/TOSC2에 연결된 외부 크리스탈)
 
 - **TCNT0(Timer/Counter Register)**
+<img width="634" height="96" alt="image" src="https://github.com/user-attachments/assets/fbf0fb59-7209-40d0-8a62-62eda16784c8" />
 
     **TCNT0 7:0**:
     - 8비트 카운더 값을 저장하는 레지스터
@@ -87,12 +57,14 @@
     - But, Counter가 동작 중 값 수정 시 문제 발생
 
 - **OCR0(Output Compare Register)**
+<img width="656" height="100" alt="image" src="https://github.com/user-attachments/assets/98c15a02-c437-4e7e-a59f-72adac74be27" />
 
      **OCR0 7:0**:
     - TCNT 값과 비교하여 OCn 단자에 출력 신호를 발생하기 위한 8비트를 저장하는 레지스터
     - TCNT0이 TOP 또는 BOTTOM에 도달했을 때 값이 갱심됨
 
 - **ASSR(Asynchronous Status Register)**
+<img width="644" height="96" alt="image" src="https://github.com/user-attachments/assets/185a38da-fa5a-4b5e-b47c-38b30ba57dab" />
 
     **Bit3 - AS0**:
     - clock 소스를 선택하는 비트
@@ -121,6 +93,7 @@
         -> 이 값이 임시 레지스터로부터 TCCR0 레지스터에 옮겨져서 TCCR0의 Write가 완료되면 다시 0이 됨
 
 - **TIMSK (Timer/Counter Interrupt Mask Register)**
+<img width="632" height="96" alt="image" src="https://github.com/user-attachments/assets/12f91a57-66af-4a93-abf9-907b929642f4" />
 
     **Bit7 - OCIE2**:
     - OCIE2 = 1 이고 SREG의 I비트(전역 인터럽트 허용)도 1로 설정된 경우
@@ -158,6 +131,7 @@
     - 참고: TIMSK는 Timer0·Timer1·Timer2 관련 인터럽트를 모두 관리하며, Timer1의 Output Compare C와 Timer3 관련 인터럽트는 뒤에 나올 **ETIMSK**가 별도로 관리한다
 
 - **TIFR (Timer/Counter Interrupt Flag Register)**
+<img width="612" height="88" alt="image" src="https://github.com/user-attachments/assets/34ca36c3-69af-4506-b0dd-c1c8f39dad97" />
 
     **Bit7 - OCF2**:
     - Timer/Counter2의 TCNT2 값이 OCR2와 일치(Compare Match)하면 1로 set
@@ -199,6 +173,7 @@
 ### 2-2. 레지스터 설명
 
 - **TCCR1A / TCCR3A (Timer/Counter1,3 Control Register A)**
+<img width="648" height="220" alt="image" src="https://github.com/user-attachments/assets/ac08b688-7881-4ec4-8020-0d04216bffaa" />
 
     **Bit7,6 - COM1A1~0**:
     - OC1A 핀 동작 설정
@@ -209,34 +184,13 @@
     **Bit3,2 - COM1C1~0**:
     - OC1C 핀 동작 설정 (Timer1,3만 가지는 세 번째 출력비교 채널)
 
-    - COM1x1~0 비트는 Non-PWM/Fast PWM/Phase Correct PWM 모드별로 다음과 같이 동작한다
+    - COM1x1~0 비트는 Non-PWM/Fast PWM/Phase Correct PWM 모드별로 비트를 다르게 설정해야한다. 
+<img width="646" height="268" alt="image" src="https://github.com/user-attachments/assets/a289173c-db24-4b27-b042-5e5ee50f8696" />
 
-    *① Non-PWM 모드*
+<img width="642" height="372" alt="image" src="https://github.com/user-attachments/assets/dc701ee0-0308-408c-882e-1b1e79d76209" />
 
-    | COM1x1 | COM1x0 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC1x 연결 안 함 |
-    | 0 | 1 | Compare Match 시 OC1x 토글 |
-    | 1 | 0 | Compare Match 시 OC1x Clear |
-    | 1 | 1 | Compare Match 시 OC1x Set |
 
-    *② Fast PWM 모드*
-
-    | COM1x1 | COM1x0 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC1x 연결 안 함 |
-    | 0 | 1 | 일반적으로 예약(미사용). 단, WGM13:0=15(OCR1A를 TOP으로 쓰는 Fast PWM)에서는 OC1A에 한해 Compare Match 시 토글 |
-    | 1 | 0 | 비반전: Compare Match 시 Clear, TOP에서 Set |
-    | 1 | 1 | 반전: Compare Match 시 Set, TOP에서 Clear |
-
-    *③ Phase Correct / Phase and Frequency Correct PWM 모드*
-
-    | COM1x1 | COM1x0 | 동작 |
-    | :--: | :--: | :--- |
-    | 0 | 0 | OC1x 연결 안 함 |
-    | 0 | 1 | 예약(일반적으로 미사용, OCR1A를 TOP으로 쓰는 특수 모드에서만 별도 규정 존재) |
-    | 1 | 0 | 비반전: Up-counting 중 Compare Match 시 Clear, Down-counting 중 Set |
-    | 1 | 1 | 반전: Up-counting 중 Compare Match 시 Set, Down-counting 중 Clear |
+<img width="664" height="398" alt="image" src="https://github.com/user-attachments/assets/2a3a852b-7296-46a8-962e-4b38f69f2bcf" />
 
     **Bit1,0 - WGM11~10**:
     - TCCR1B의 WGM13~12와 합쳐서 4비트로 동작 모드를 결정 
@@ -348,16 +302,8 @@
 
 - CSn2:0 (CS12:10 / CS22:20 / CS32:30) 값에 따른 클럭 분주비는 Timer1,2,3 모두 아래의 동일한 표를 따른다
 
-| CSn2 | CSn1 | CSn0 | 클럭 소스 |
-| :--: | :--: | :--: | :--- |
-| 0 | 0 | 0 | 정지(clock 없음) |
-| 0 | 0 | 1 | clk (분주 없음) |
-| 0 | 1 | 0 | clk/8 |
-| 0 | 1 | 1 | clk/64 |
-| 1 | 0 | 0 | clk/256 |
-| 1 | 0 | 1 | clk/1024 |
-| 1 | 1 | 0 | 외부 클럭, Tn 핀의 Falling edge |
-| 1 | 1 | 1 | 외부 클럭, Tn 핀의 Rising edge |
+<img width="650" height="288" alt="image" src="https://github.com/user-attachments/assets/2e267a38-9c12-407b-8162-e4ab92f964a9" />
+
 
 ### 3-3. Prescaler Reset
 
