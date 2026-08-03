@@ -25,7 +25,10 @@
 ### 1-2. 레지스터 설명
 
 - **TCCR0 (Timer/Counter Control Register0)**
+
 <img width="658" height="92" alt="image" src="https://github.com/user-attachments/assets/e66cf219-a77e-4f60-8172-bf948f9dd9e5" />
+
+
 
     **Bit7 - FOC0 (Force Output Compare)**:
     - PWM모드가 아닌 경우에만 유효
