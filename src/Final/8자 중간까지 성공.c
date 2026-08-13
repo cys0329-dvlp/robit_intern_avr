@@ -63,7 +63,8 @@ void UART1_print(const char *str);
 
 char buf[32];
 
-
+int Line8_AllOff_Count = 0;
+int Line8_AllOff_Prev = 0;
 // ============================================================
 // ADC 데이터
 // ============================================================
@@ -276,6 +277,9 @@ void Button_Process(void)
 		// 마지막 PWM 초기화
 		last_left_duty = 0;
 		last_right_duty = 0;
+		
+		Line8_AllOff_Count = 0;
+		Line8_AllOff_Prev = 0;
 	}
 
 
@@ -828,7 +832,7 @@ void Line8_Update(void)
 	// 오른쪽 회전
 	// ========================================================
 
-	if (Line8_State == 1)
+	else if (Line8_State == 1)
 	{
 		// 왼쪽 모터 전진
 
@@ -853,7 +857,7 @@ void Line8_Update(void)
 
 		if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
 		{
-			Line8_State = 2; 
+			Line8_State = 2;
 			
 			Line8_LeaveAllOn = 0;
 		}
@@ -863,25 +867,58 @@ void Line8_Update(void)
 	// ========================================================
 	// State 2
 	// 일반 라인트레이싱
+	// =======================================================
+	
+	// ========================================================
+	// State 2
+	// 일반 라인트레이싱
 	// ========================================================
 
 	else if (Line8_State == 2)
 	{
-		// 두 번째 ALL ON 진입
-		
-		if (
-		on_line[0] &&
-		on_line[1] &&
-		on_line[2] &&
-		on_line[3] &&
-		on_line[4] &&
-		on_line[5]
-		)
+		int all_off =
+		!on_line[0] &&
+		!on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		!on_line[5];
+
+
+		// --------------------------------------------
+		// 모두 OFF가 되는 순간만 카운트
+		// --------------------------------------------
+
+		if (all_off && !Line8_AllOff_Prev)
+		{
+			Line8_AllOff_Count++;
+
+			sprintf(buf, "ALL OFF COUNT = %d\r\n",
+			Line8_AllOff_Count);
+
+			UART1_print(buf);
+		}
+
+
+		// 이전 상태 저장
+		Line8_AllOff_Prev = all_off;
+
+
+		// --------------------------------------------
+		// 2번 발생하면 State 3
+		// --------------------------------------------
+
+		if (Line8_AllOff_Count >= 2)
 		{
 			Line8_State = 3;
-			
+
+			Line8_AllOff_Count = 0;
+			Line8_AllOff_Prev = 0;
+
+			UART1_print("STATE 3\r\n");
 		}
 	}
+	
 
 
 	// ========================================================
@@ -891,8 +928,32 @@ void Line8_Update(void)
 
 	else if (Line8_State == 3)
 	{
-		Motor_SetSpeed(0, 0);
-		PORTA = (1<<PA7);
+		// 왼쪽 모터 전진
+
+		PORTB &= ~(1 << PB0);
+		PORTB |=  (1 << PB1);
+
+
+		// 오른쪽 모터 정지
+
+		PORTB &= ~(1 << PB2);
+		PORTB &= ~(1 << PB3);
+		
+		Motor_SetSpeed(150, 0);
+
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+		// 중앙 라인을 다시 찾으면
+		// 일반 라인트레이싱
+
+		if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
+		{
+			Parallelogram_state = 1;
+			
+			Line8_LeaveAllOn = 0;
+		}
 	}
 
 }
@@ -906,7 +967,82 @@ void Parallelogram_Update(void)
 {
 	if (Parallelogram_state == 1)
 	{
-		// 아직 구현하지 않음
+		if(on_line[0] &&
+		!on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		!on_line[5])
+		{
+			// 왼쪽 모터 후진
+
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+
+			// 오른쪽 모터 후진
+
+			PORTB |= (1 << PB2);
+			PORTB &= ~(1 << PB3);
+			_delay_ms(300);
+			
+			// 왼쪽 모터 전진
+
+			PORTB &= ~(1 << PB0);
+			PORTB |= (1 << PB1);
+
+
+			// 오른쪽 모터 후진
+
+			PORTB |= (1 << PB2);
+			PORTB &= ~(1 << PB3);
+			_delay_ms(300);
+		}
+		else if(
+		!on_line[0] &&
+		!on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		on_line[5])
+		{
+			// 왼쪽 모터 후진
+
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+
+			// 오른쪽 모터 후진
+
+			PORTB |= (1 << PB2);
+			PORTB &= ~(1 << PB3);
+			_delay_ms(300);
+			
+			// 왼쪽 모터 후진
+
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+
+			// 오른쪽 모터 전진
+
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
+			_delay_ms(300);
+		}
+		else
+		{
+			// 왼쪽 모터 전진
+
+			PORTB &= ~(1 << PB0);
+			PORTB |=  (1 << PB1);
+
+
+			// 오른쪽 모터 전진
+
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
+		}
 	}
 }
 
