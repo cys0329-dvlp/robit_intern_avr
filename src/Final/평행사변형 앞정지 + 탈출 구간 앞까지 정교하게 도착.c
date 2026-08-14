@@ -1040,12 +1040,12 @@ void Parallelogram_Update(void)
 
 				Motor_SetSpeed(150, 150);
 				
-				_delay_ms(500);
+				_delay_ms(455);
 				
 				Parallelogram_state = 2;
 			}
 	}
-
+	// 오른쪽으로 회전한 뒤 쭉 직진.
 	else if(Parallelogram_state == 2)
 	{
 		// 왼쪽 모터 전진
@@ -1056,7 +1056,7 @@ void Parallelogram_Update(void)
 		PORTB &= ~(1 << PB2);
 		PORTB |=  (1 << PB3);
 
-		Motor_SetSpeed(150, 150);   // ← 누락되어 있던 duty 설정 추가
+		Motor_SetSpeed(150, 127);   // ← 누락되어 있던 duty 설정 추가
 		
 		Parallelogram_state = 3;
 
@@ -1081,6 +1081,8 @@ void Parallelogram_Update(void)
 			PORTB |=  (1 << PB3);
 
 			Motor_SetSpeed(150, 20);
+			
+			_delay_ms(500);
 		}
 		else if (on_line[5] && !on_line[0])
 		{
@@ -1100,6 +1102,8 @@ void Parallelogram_Update(void)
 			PORTB |=  (1 << PB3);
 
 			Motor_SetSpeed(20, 150);
+			
+			_delay_ms(500);
 		}
 		else
 		{
