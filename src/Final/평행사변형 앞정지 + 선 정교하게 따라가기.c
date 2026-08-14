@@ -1040,12 +1040,10 @@ void Parallelogram_Update(void)
 
 				Motor_SetSpeed(150, 150);
 				
-				_delay_ms(50);
+				_delay_ms(500);
 				
 				Parallelogram_state = 2;
 			}
-			
-		
 	}
 
 	else if(Parallelogram_state == 2)
