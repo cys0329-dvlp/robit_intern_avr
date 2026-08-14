@@ -922,13 +922,13 @@ void Line8_Update(void)
 		PORTB |=  (1 << PB1);
 
 
-		// 오른쪽 모터 후진
+		// 오른쪽 모터 정지
 
-		PORTB |= (1 << PB2);
+		PORTB &= ~(1 << PB2);
 		PORTB &= ~(1 << PB3);
 
 
-		Motor_SetSpeed(100, 50);
+		Motor_SetSpeed(100, 0);
 		
 		
 		
@@ -1006,38 +1006,42 @@ void Line8_Update(void)
 
 void Parallelogram_Update(void)
 {
-	if (Parallelogram_state == 1)
+	if (Parallelogram_state == 1) 
 	{
 			// 왼쪽 모터 전진
 			PORTB &= ~(1 << PB0);
 			PORTB |=  (1 << PB1);
 
-			// 오른쪽 모터 후진
-			PORTB |=  (1 << PB2);
-			PORTB &= ~(1 << PB3);
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
 
 			Motor_SetSpeed(150, 150);
-			_delay_ms(500);
-
+			
 			// 딜레이 직후 센서값 다시 읽어서 최신 상태로 판단
 			Sensor_Update();
-
-			if(!on_line[0] &&
-			!on_line[1] &&
+			
+			//왼쪽 2개 인식되면 오른쪽으로 살짝 회전하기
+			if(
+			on_line[0] &&
+			on_line[1] &&
 			!on_line[2] &&
 			!on_line[3] &&
 			!on_line[4] &&
-			on_line[5])
+			!on_line[5])
 			{
-				
-				// 왼쪽 모터 정지
+				// 왼쪽 모터 전진
 				PORTB &= ~(1 << PB0);
-				PORTB &=  ~(1 << PB1);
+				PORTB |=  (1 << PB1);
 
 				// 오른쪽 모터 후진
-				PORTB &=  ~(1 << PB2);
+				PORTB |= (1 << PB2);
 				PORTB &= ~(1 << PB3);
-				Motor_SetSpeed(0,0);
+
+				Motor_SetSpeed(150, 150);
+				
+				_delay_ms(50);
+				
 				Parallelogram_state = 2;
 			}
 			
