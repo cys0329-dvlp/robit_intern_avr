@@ -896,7 +896,7 @@ void Line8_Update(void)
 		on_line[2] &&
 		on_line[3] &&
 		on_line[4] &&
-		!on_line[5]) 
+		!on_line[5])
 		)
 		{
 			Line8_State = 3;
@@ -925,6 +925,37 @@ void Line8_Update(void)
 
 
 		Motor_SetSpeed(50, 0);
+		_delay_ms(2000);
+		
+		// 왼쪽 모터 전진
+
+		PORTB &= ~(1 << PB0);
+		PORTB |=  (1 << PB1);
+
+
+		// 오른쪽 모터 정지
+
+		PORTB &= ~(1 << PB2);
+		PORTB |= (1 << PB3);
+		
+		if(on_line[0] &&
+		on_line[1] &&
+		on_line[2] &&
+		on_line[3] &&
+		on_line[4] &&
+		on_line[5])
+		{
+			// 왼쪽 모터 정지
+
+			PORTB &= ~(1 << PB0);
+			PORTB &=  ~(1 << PB1);
+
+
+			// 오른쪽 모터 정지
+
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
+		}
 	}
 
 }
