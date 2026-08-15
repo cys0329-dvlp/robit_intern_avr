@@ -1005,7 +1005,7 @@ void Line8_Update(void)
 
 			Motor_SetSpeed(0, 0);
 			
-			_delay_ms(3000);
+			_delay_ms(1000);
 			Line8_State = 5; //다른 State로 넘겨줘야 반복 안됨
 			Parallelogram_state = 1; // 평행사변형 시작
 		}
@@ -1054,7 +1054,7 @@ void Parallelogram_Update(void)
 
 			Motor_SetSpeed(150, 150);
 			
-			_delay_ms(435);
+			_delay_ms(425);
 			
 			Parallelogram_state = 2;
 		}
@@ -1117,7 +1117,7 @@ void Parallelogram_Update(void)
 	}
 	else if(Parallelogram_state == 4)
 	{
-		if((on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
+		if((on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]) || (on_line[0] && on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
 		{
 			
 			// 왼쪽 모터 후진
