@@ -1054,7 +1054,7 @@ void Parallelogram_Update(void)
 
 			Motor_SetSpeed(150, 150);
 			
-			_delay_ms(445);
+			_delay_ms(435);
 			
 			Parallelogram_state = 2;
 		}
@@ -1070,7 +1070,7 @@ void Parallelogram_Update(void)
 		PORTB &= ~(1 << PB2);
 		PORTB |=  (1 << PB3);
 
-		Motor_SetSpeed(150, 145);  
+		Motor_SetSpeed(150, 145);
 		
 		Parallelogram_state = 3;
 
@@ -1110,10 +1110,37 @@ void Parallelogram_Update(void)
 		{
 			Parallelogram_state = 4;
 			Line8_LeaveAllOn = 0;
-			Bar_Trigger = 1;
 
 			LineFind_EdgeCount = 0;
 			LineFind_Last = 0;
+		}
+	}
+	else if(Parallelogram_state == 4)
+	{
+		if((on_line[0] && on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
+		{
+			
+			// 왼쪽 모터 후진
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB |=  (1 << PB3);
+			
+			Motor_SetSpeed(0,150);
+		}
+		Sensor_Update();   // ★ 반드시 회전 후 값을 다시 읽어야 함
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+
+		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
+		{
+			Parallelogram_state = 5;
+			Line8_LeaveAllOn = 0;
+			Bar_Trigger = 1;
 		}
 	}
 }
