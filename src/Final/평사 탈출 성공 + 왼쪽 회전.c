@@ -1117,7 +1117,7 @@ void Parallelogram_Update(void)
 	}
 	else if(Parallelogram_state == 4)
 	{
-		if((on_line[0] && on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
+		if((on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
 		{
 			
 			// 왼쪽 모터 후진
