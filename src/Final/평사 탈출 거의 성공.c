@@ -53,6 +53,8 @@ void SLine_Update(void);
 void Kickstart_Process(void);
 void Line8_Update(void);
 void Parallelogram_Update(void);
+void Bar_Update(void);
+
 // 기타
 void UART1_print(const char *str);
 
@@ -154,6 +156,15 @@ int Line8_LeaveAllOn = 0;
 // ============================================================
 
 int Parallelogram_state = 0;
+int LineFind_EdgeCount = 0;
+int LineFind_Last = 0;
+
+// ============================================================
+// Bar(PSD) 관련 상태
+// ============================================================
+
+int Bar_Trigger = 0;   // State 3 -> 4 전환 시 1로 설정되는 활성화 플래그
+int psd_value   = 0;   // PSD 센서 Raw 값 (PF0 / ADC0)
 
 
 // ============================================================
@@ -1040,7 +1051,7 @@ void Parallelogram_Update(void)
 
 			Motor_SetSpeed(150, 150);
 			
-			_delay_ms(425);
+			_delay_ms(445);
 			
 			Parallelogram_state = 2;
 		}
@@ -1063,68 +1074,87 @@ void Parallelogram_Update(void)
 	}
 	else if (Parallelogram_state == 3)
 	{
-		if ((!on_line[0] && !on_line[1] && !on_line[2] && on_line[3] && on_line[4] &&on_line[5]) && (!on_line[0] && !on_line[1] && !on_line[2] && on_line[3] && on_line[4] &&!on_line[5]))
+		Sensor_Update();
+
+		int cur = (on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]);
+
+		if (cur && !LineFind_Last)   // 꺼짐 -> 켜짐 순간만 카운트
 		{
-			
-			// 왼쪽 모터 후진
+			LineFind_EdgeCount++;
+		}
+		LineFind_Last = cur;
+
+		if (LineFind_EdgeCount == 2)
+		{
 			PORTB |= (1 << PB0);
 			PORTB &= ~(1 << PB1);
 
-			// 오른쪽 모터 전진
 			PORTB &= ~(1 << PB2);
 			PORTB |= (1 << PB3);
-			
+
 			Motor_SetSpeed(100, 100);
+			_delay_ms(435);
+
+			PORTB &= ~(1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
 			
-			_delay_ms(500);
+			Motor_SetSpeed(0, 0);
 			
-			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
+			_delay_ms(100);
+			Sensor_Update();
+
+			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 			{
 				Line8_LeaveAllOn = 1;
 			}
-			// 중앙 라인을 다시 찾으면
-			// 일반 라인트레이싱
 
 			if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
 			{
-				Line8_State = 4;
-				
+				Parallelogram_state = 4;
 				Line8_LeaveAllOn = 0;
+				Bar_Trigger = 1;
+
+				LineFind_EdgeCount = 0;
+				LineFind_Last = 0;
 			}
 		}
-		
 	}
+}
 
+// ============================================================
+// PSD 센서(PF0 / ADC0) 기반 정지 판단
+// 155~165 범위면 정지, 그 외에는 계속 라인트레이싱
+// ============================================================
 
-	// ================================================================
-	// State 4
-	// 코너 탈출: 왼쪽으로 회전하며 탈출 라인 탐색
-	// ================================================================
-
-	else if (Parallelogram_state == 4)
+void Bar_Update(void)
+{
+	if(Bar_Trigger == 1)
 	{
-		PORTA = (1<<PA6) & (1<<PA7);
+		// PSD 센서 값 읽기 (PF0 = ADC 채널 0)
+		psd_value = ADC_read(0);
 		
-	}
-
-
-	// ================================================================
-	// State 5
-	// 탈출 라인 확보 -> 평행사변형 종료
-	// (Line8_State는 이미 4이므로 이후는 SLine_Update가 자동으로 이어받음)
-	// ================================================================
-
-	else if (Parallelogram_state == 5)
-	{
-		PORTB &= ~(1 << PB0);
-		PORTB |=  (1 << PB1);
-
-		PORTB &= ~(1 << PB2);
-		PORTB |=  (1 << PB3);
-
-		Motor_SetSpeed(150, 150);
-
-		Parallelogram_state = 0;
+		// 라인 센서도 최신 값으로 갱신
+		Sensor_Update();
+		
+		// PSD 값이 155~165 사이면 정지
+		if (psd_value >= 155 && psd_value <= 165)
+		{
+			PORTB &= ~(1 << PB0);
+			PORTB &= ~(1 << PB1);
+			
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
+			
+			Motor_SetSpeed(0, 0);
+			
+			return;
+		}
+		
+		// 그 외에는 기존 S라인 로직으로 계속 주행
+		SLine_Update();
 	}
 }
 
