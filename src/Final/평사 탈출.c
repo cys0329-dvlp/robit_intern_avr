@@ -945,7 +945,7 @@ void Line8_Update(void)
 			
 			Line8_LeaveAllOn = 0;
 		}
-	}	
+	}
 	else if(Line8_State == 4)
 	{
 		if((!on_line[0] &&
@@ -1006,44 +1006,44 @@ void Line8_Update(void)
 
 void Parallelogram_Update(void)
 {
-	if (Parallelogram_state == 1) 
+	if (Parallelogram_state == 1)
 	{
+		// 왼쪽 모터 전진
+		PORTB &= ~(1 << PB0);
+		PORTB |=  (1 << PB1);
+
+		// 오른쪽 모터 전진
+		PORTB &= ~(1 << PB2);
+		PORTB |= (1 << PB3);
+
+		Motor_SetSpeed(150, 150);
+		
+		// 딜레이 직후 센서값 다시 읽어서 최신 상태로 판단
+		Sensor_Update();
+		
+		//왼쪽 2개 인식되면 오른쪽으로 살짝 회전하기
+		if(
+		on_line[0] &&
+		on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		!on_line[5])
+		{
 			// 왼쪽 모터 전진
 			PORTB &= ~(1 << PB0);
 			PORTB |=  (1 << PB1);
 
-			// 오른쪽 모터 전진
-			PORTB &= ~(1 << PB2);
-			PORTB |= (1 << PB3);
+			// 오른쪽 모터 후진
+			PORTB |= (1 << PB2);
+			PORTB &= ~(1 << PB3);
 
 			Motor_SetSpeed(150, 150);
 			
-			// 딜레이 직후 센서값 다시 읽어서 최신 상태로 판단
-			Sensor_Update();
+			_delay_ms(455);
 			
-			//왼쪽 2개 인식되면 오른쪽으로 살짝 회전하기
-			if(
-			on_line[0] &&
-			on_line[1] &&
-			!on_line[2] &&
-			!on_line[3] &&
-			!on_line[4] &&
-			!on_line[5])
-			{
-				// 왼쪽 모터 전진
-				PORTB &= ~(1 << PB0);
-				PORTB |=  (1 << PB1);
-
-				// 오른쪽 모터 후진
-				PORTB |= (1 << PB2);
-				PORTB &= ~(1 << PB3);
-
-				Motor_SetSpeed(150, 150);
-				
-				_delay_ms(455);
-				
-				Parallelogram_state = 2;
-			}
+			Parallelogram_state = 2;
+		}
 	}
 	// 오른쪽으로 회전한 뒤 쭉 직진.
 	else if(Parallelogram_state == 2)
@@ -1063,26 +1063,34 @@ void Parallelogram_Update(void)
 	}
 	else if (Parallelogram_state == 3)
 	{
-		if (on_line[0] && !on_line[5])
+		if (on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
 		{
-			// 왼쪽 끝 LED 켜짐 -> 오른쪽(안쪽)으로 보정
+			
+			// 왼쪽 모터 후진
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
 
-			if (LR_Last_Side == 2)
-			LR_Edge_Count++;
-			else
-			LR_Edge_Count = 1;
-
-			LR_Last_Side = 1;
-
-			PORTB &= ~(1 << PB0);
-			PORTB |=  (1 << PB1);
-
+			// 오른쪽 모터 전진
 			PORTB &= ~(1 << PB2);
-			PORTB |=  (1 << PB3);
-
-			Motor_SetSpeed(150, 20);
+			PORTB |= (1 << PB3);
+			
+			Motor_SetSpeed(100, 100);
 			
 			_delay_ms(500);
+			
+			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
+			{
+				Line8_LeaveAllOn = 1;
+			}
+			// 중앙 라인을 다시 찾으면
+			// 일반 라인트레이싱
+
+			if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
+			{
+				Line8_State = 4;
+				
+				Line8_LeaveAllOn = 0;
+			}
 		}
 		else if (on_line[5] && !on_line[0])
 		{
