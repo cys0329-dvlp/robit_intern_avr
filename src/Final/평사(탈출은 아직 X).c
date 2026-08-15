@@ -1040,7 +1040,7 @@ void Parallelogram_Update(void)
 
 			Motor_SetSpeed(150, 150);
 			
-			_delay_ms(455);
+			_delay_ms(425);
 			
 			Parallelogram_state = 2;
 		}
@@ -1056,14 +1056,14 @@ void Parallelogram_Update(void)
 		PORTB &= ~(1 << PB2);
 		PORTB |=  (1 << PB3);
 
-		Motor_SetSpeed(150, 127);   // ← 누락되어 있던 duty 설정 추가
+		Motor_SetSpeed(150, 145);   // ← 누락되어 있던 duty 설정 추가
 		
 		Parallelogram_state = 3;
 
 	}
 	else if (Parallelogram_state == 3)
 	{
-		if (on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
+		if ((!on_line[0] && !on_line[1] && !on_line[2] && on_line[3] && on_line[4] &&on_line[5]) && (!on_line[0] && !on_line[1] && !on_line[2] && on_line[3] && on_line[4] &&!on_line[5]))
 		{
 			
 			// 왼쪽 모터 후진
@@ -1092,53 +1092,7 @@ void Parallelogram_Update(void)
 				Line8_LeaveAllOn = 0;
 			}
 		}
-		else if (on_line[5] && !on_line[0])
-		{
-			// 오른쪽 끝 LED 켜짐 -> 왼쪽(안쪽)으로 보정
-
-			if (LR_Last_Side == 1)
-			LR_Edge_Count++;
-			else
-			LR_Edge_Count = 1;
-
-			LR_Last_Side = 2;
-
-			PORTB &= ~(1 << PB0);
-			PORTB |=  (1 << PB1);
-
-			PORTB &= ~(1 << PB2);
-			PORTB |=  (1 << PB3);
-
-			Motor_SetSpeed(20, 150);
-			
-			_delay_ms(500);
-		}
-		else
-		{
-			// 정상 구간 -> 직진
-
-			PORTB &= ~(1 << PB0);
-			PORTB |=  (1 << PB1);
-
-			PORTB &= ~(1 << PB2);
-			PORTB |=  (1 << PB3);
-
-			Motor_SetSpeed(150, 150);
-		}
-
-
-		// ============================================================
-		// 좌/우 번갈아 5회 이상 -> 코너에 걸림 -> 탈출 모드 진입
-		// (오른쪽 위 꼭짓점에서 좌우로 계속 왔다갔다 하는 상황 대응)
-		// ============================================================
-
-		if (LR_Edge_Count >= 5)
-		{
-			LR_Edge_Count = 0;
-			LR_Last_Side  = 0;
-
-			Parallelogram_state = 4;
-		}
+		
 	}
 
 
@@ -1149,22 +1103,8 @@ void Parallelogram_Update(void)
 
 	else if (Parallelogram_state == 4)
 	{
-		// 왼쪽 모터 정지, 오른쪽 모터 전진 -> 좌회전
-
-		PORTB &= ~(1 << PB0);
-		PORTB &= ~(1 << PB1);
-
-		PORTB &= ~(1 << PB2);
-		PORTB |=  (1 << PB3);
-
-		Motor_SetSpeed(0, 150);
-
-		// 가운데 센서가 라인을 다시 잡으면 탈출 라인 발견으로 판단
-
-		if (on_line[2] || on_line[3])
-		{
-			Parallelogram_state = 5;
-		}
+		PORTA = (1<<PA6) & (1<<PA7);
+		
 	}
 
 
