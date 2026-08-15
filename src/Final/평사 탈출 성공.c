@@ -386,11 +386,14 @@ void Driving_Process(void)
 
 	if (Line8_State == 0 ||
 	Line8_State == 2 ||
-	Line8_State == 4)
+	Line8_State == 4||
+	Parallelogram_state ==4)
 	{
 		SLine_Update();
 	}
 	Parallelogram_Update();
+	
+	Bar_Update();
 }
 
 
@@ -1067,7 +1070,7 @@ void Parallelogram_Update(void)
 		PORTB &= ~(1 << PB2);
 		PORTB |=  (1 << PB3);
 
-		Motor_SetSpeed(150, 145);   // ← 누락되어 있던 duty 설정 추가
+		Motor_SetSpeed(150, 145);  
 		
 		Parallelogram_state = 3;
 
@@ -1092,34 +1095,25 @@ void Parallelogram_Update(void)
 			PORTB &= ~(1 << PB2);
 			PORTB |= (1 << PB3);
 
-			Motor_SetSpeed(100, 100);
-			_delay_ms(435);
-
-			PORTB &= ~(1 << PB0);
-			PORTB &= ~(1 << PB1);
-
-			PORTB &= ~(1 << PB2);
-			PORTB &= ~(1 << PB3);
-			
-			Motor_SetSpeed(0, 0);
-			
+			Motor_SetSpeed(60, 60);
 			_delay_ms(100);
-			Sensor_Update();
 
-			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
-			{
-				Line8_LeaveAllOn = 1;
-			}
+			
+		}
+		Sensor_Update();   // ★ 반드시 회전 후 값을 다시 읽어야 함
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
 
-			if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
-			{
-				Parallelogram_state = 4;
-				Line8_LeaveAllOn = 0;
-				Bar_Trigger = 1;
+		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
+		{
+			Parallelogram_state = 4;
+			Line8_LeaveAllOn = 0;
+			Bar_Trigger = 1;
 
-				LineFind_EdgeCount = 0;
-				LineFind_Last = 0;
-			}
+			LineFind_EdgeCount = 0;
+			LineFind_Last = 0;
 		}
 	}
 }
