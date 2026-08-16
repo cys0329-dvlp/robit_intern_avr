@@ -70,7 +70,9 @@ char buf[32];
 // ============================================================
 
 int LR_Edge_Count = 0;   // 좌/우 끝 LED가 번갈아 켜진 횟수
-int LR_Last_Side  = 0;   // 0 = 없음, 1 = 왼쪽, 2 = 오른쪽
+int LR_Last_Side  = 0;   // 0 = 없음, 1 = 왼쪽, 2 = 오른쪽ㅍ
+
+int Parallelogram_TurnDone = 0;   // state2 진입 시 1회 회전 완료 여부
 // ============================================================
 // ADC 데이터
 // ============================================================
@@ -292,6 +294,11 @@ void Button_Process(void)
 		// 마지막 PWM 초기화
 		last_left_duty = 0;
 		last_right_duty = 0;
+		
+		Parallelogram_state = 0;
+		Parallelogram_TurnDone = 0;
+		LR_Edge_Count = 0;
+		Bar_Trigger = 0;
 	}
 
 
@@ -389,7 +396,6 @@ void Driving_Process(void)
 	Line8_State == 4||
 	Line8_State == 6||
 	Parallelogram_state ==2 ||
-	Parallelogram_state == 3||
 	Bar_Trigger == 1)
 	{
 		SLine_Update();
@@ -837,7 +843,7 @@ void Line8_Update(void)
 	if(Line8_State ==0)
 	{
 		if((on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) ||
-		 (on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5]))
+		(on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5]))
 		{
 			Line8_State = 1;
 			// 아직 6개 ON 구간을 벗어나지 않음
@@ -1061,20 +1067,27 @@ void Line8_Update(void)
 // 평행사변형
 // ============================================================
 
+// ============================================================
+// 평행사변형
+// ============================================================
+
 void Parallelogram_Update(void)
 {
-	
 	int LR_count = 0;
-	
-	
+
+
+	// ========================================================
+	// State 1
+	// 좌우 지그재그로 코너 탈출 (10회 반복)
+	// ========================================================
+
 	if (Parallelogram_state == 1)
 	{
-		while(1)
+		while (1)
 		{
-			
 			Sensor_Update();
-			
-			if(on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+
+			if (on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 			{
 				// 왼쪽 모터 후진
 				PORTB |= (1 << PB0);
@@ -1083,11 +1096,11 @@ void Parallelogram_Update(void)
 				// 오른쪽 모터 후진
 				PORTB |= (1 << PB2);
 				PORTB &= ~(1 << PB3);
-				
+
 				Motor_SetSpeed(150, 150);
-				
+
 				_delay_ms(200);
-				
+
 				// 왼쪽 모터 전진
 				PORTB &= ~(1 << PB0);
 				PORTB |= (1 << PB1);
@@ -1095,15 +1108,15 @@ void Parallelogram_Update(void)
 				// 오른쪽 모터 후진
 				PORTB |= (1 << PB2);
 				PORTB &= ~(1 << PB3);
-				
+
 				Motor_SetSpeed(150, 150);
-				
+
 				_delay_ms(200);
-				
+
 				LR_count++;
+				LR_Edge_Count = 1;
 			}
-			
-			else if(!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && on_line[5])
+			else if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && on_line[5])
 			{
 				// 왼쪽 모터 후진
 				PORTB |= (1 << PB0);
@@ -1112,11 +1125,11 @@ void Parallelogram_Update(void)
 				// 오른쪽 모터 후진
 				PORTB |= (1 << PB2);
 				PORTB &= ~(1 << PB3);
-				
+
 				Motor_SetSpeed(150, 150);
-				
+
 				_delay_ms(200);
-				
+
 				// 왼쪽 모터 후진
 				PORTB |= (1 << PB0);
 				PORTB &= ~(1 << PB1);
@@ -1124,11 +1137,13 @@ void Parallelogram_Update(void)
 				// 오른쪽 모터 전진
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
-				
+
 				Motor_SetSpeed(150, 150);
-				
+
 				_delay_ms(200);
+
 				LR_count++;
+				LR_Edge_Count = 2;
 			}
 			else
 			{
@@ -1139,80 +1154,139 @@ void Parallelogram_Update(void)
 				// 오른쪽 모터 전진
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
-				
+
 				Motor_SetSpeed(150, 150);
 			}
-			
-			if(LR_count == 10)
+
+			if (LR_count == 10)
 			{
 				Parallelogram_state = 2;
+				Parallelogram_TurnDone = 0;
 				break;
 			}
 		}
 	}
-	else if(Parallelogram_state == 2)
+
+
+	// ========================================================
+	// State 2
+	// LR_Edge_Count 값에 따라 회전->직진 or 직진->회전 (원본 유지)
+	// ========================================================
+
+	else if (Parallelogram_state == 2)
 	{
-		//왼쪽 모터 전진
-		PORTB &= ~(1 << PB0);
-		PORTB |= (1 << PB1);
-		
-		//오른쪽 모터 전진
-		PORTB &= ~(1 << PB2);
-		PORTB |= (1 << PB3);
-
-		Motor_SetSpeed(90, 90);
-
-		_delay_ms(500);
-		
-		//왼쪽 모터 후진
-		PORTB |= (1 << PB0);
-		PORTB &= ~(1 << PB1);
-		
-		//오른쪽 모터 전진
-		PORTB &= ~(1 << PB2);
-		PORTB |= (1 << PB3);
-
-		Motor_SetSpeed(90, 90);
-
-		_delay_ms(500);
-		
-		
-		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		if (!Parallelogram_TurnDone)
 		{
-			Line8_LeaveAllOn = 1;
-		}
-		
-		if (Line8_LeaveAllOn && (on_line[0]||on_line[1]||on_line[2] || on_line[3]||on_line[4] || on_line[5]))
-		{
-			Parallelogram_state = 3;
-			Line8_LeaveAllOn = 0;
+			// ====================================================
+			// 1회성 회전 (LR_Edge_Count에 따라 방향 결정)
+			// ====================================================
+
+			if (LR_Edge_Count == 1)
+			{
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+
+				Motor_SetSpeed(90, 90);
+
+				_delay_ms(200);
+				
+				// 왼쪽 모터 전진
+				PORTB &= ~(1 << PB0);
+				PORTB |= (1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+
+				Motor_SetSpeed(90, 90);
+
+				_delay_ms(500);
+
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+
+				Motor_SetSpeed(90, 90);
+
+				_delay_ms(500);
+			}
+			else if (LR_Edge_Count == 2)
+			{
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+
+				Motor_SetSpeed(90, 90);
+
+				_delay_ms(200);
+
+				// 왼쪽 모터 전진
+				PORTB &= ~(1 << PB0);
+				PORTB |= (1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+
+				Motor_SetSpeed(90, 90);
+
+				_delay_ms(500);
+			}
+
+			Parallelogram_TurnDone = 1;   // 1회 회전 완료 표시
+			
+			 Sensor_Update();
+			if(on_line[0] && on_line[1])
+			{
+				PORTA = 1<<PA7;
+				Parallelogram_state = 3;
+			}
 		}
 	}
-	else if(Parallelogram_state == 3)
+
+
+	// ========================================================
+	// State 3
+	// 계속 좌회전 유지 (조건 없이) -> 라인 재감지 시 다음 단계
+	// ========================================================
+
+	else if (Parallelogram_state == 3)
 	{
-		if(on_line[0] && on_line[1])
-		{
-			//왼쪽 모터 후진
+		
+			// 왼쪽 모터 후진
 			PORTB |= (1 << PB0);
 			PORTB &= ~(1 << PB1);
-			
-			//오른쪽 모터 전진
+					
+			// 오른쪽 모터 전진
 			PORTB &= ~(1 << PB2);
 			PORTB |= (1 << PB3);
-
-			Motor_SetSpeed(90, 150);
-		}
+					
+			Motor_SetSpeed(150, 150);
 		
+
 		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
 			Line8_LeaveAllOn = 1;
 		}
-		
+
 		if (Line8_LeaveAllOn && (on_line[0]||on_line[1]||on_line[2] || on_line[3]||on_line[4] || on_line[5]))
 		{
 			Parallelogram_state = 4;
 			Line8_LeaveAllOn = 0;
-			Bar_Trigger =1;
+			Bar_Trigger = 1;
 		}
 	}
 }
@@ -1253,7 +1327,7 @@ void Bar_Update(void)
 		
 		if(on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
-			//왼쪽 모터 
+			//왼쪽 모터
 			PORTB &= ~(1 << PB0);
 			PORTB &= ~(1 << PB1);
 			
