@@ -13,7 +13,7 @@
 // ============================================================
 
 #define TOP_VALUE       256
-#define BASE_SPEED      0.45
+#define BASE_SPEED      0.4
 
 #define KICKSTART_DUTY  256
 #define KICKSTART_MS    40
@@ -387,6 +387,7 @@ void Driving_Process(void)
 	if (Line8_State == 0 ||
 	Line8_State == 2 ||
 	Line8_State == 4||
+	Line8_State == 6||
 	Parallelogram_state ==4)
 	{
 		SLine_Update();
@@ -833,7 +834,7 @@ void Line8_Update(void)
 {
 	if(Line8_State ==0)
 	{
-		if(on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) // 0~4까지 켜지면
+		if((on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) || (on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5])) // 0~4까지 켜지면
 		{
 			Line8_State = 1;
 			// 아직 6개 ON 구간을 벗어나지 않음
@@ -850,7 +851,7 @@ void Line8_Update(void)
 		// 왼쪽 모터 전진
 
 		PORTB &= ~(1 << PB0);
-		PORTB |=  (1 << PB1);
+		PORTB |= (1 << PB1);
 
 
 		// 오른쪽 모터 정지
@@ -881,8 +882,47 @@ void Line8_Update(void)
 	// State 2
 	// 일반 라인트레이싱
 	// ========================================================
+	
+	else if(Line8_State == 2)
+	{
+		if((on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) || (on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5])) // 0~4까지 켜지면
+		{
+			Line8_State = 3;
+			// 아직 6개 ON 구간을 벗어나지 않음
+			Line8_LeaveAllOn = 0;
+		}
+	}
+	else if(Line8_State == 3)
+	{
+		// 왼쪽 모터 전진
 
-	else if (Line8_State == 2)
+		PORTB &= ~(1 << PB0);
+		PORTB |=  (1 << PB1);
+
+
+		// 오른쪽 모터 정지
+
+		PORTB &= ~(1 << PB2);
+		PORTB &= ~(1 << PB3);
+
+
+		Motor_SetSpeed(150, 0);
+
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] &&!on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+		// 중앙 라인을 다시 찾으면
+		// 일반 라인트레이싱
+
+		if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
+		{
+			Line8_State = 4;
+			
+			Line8_LeaveAllOn = 0;
+		}
+	}
+	else if (Line8_State == 4)
 	{
 		// 두 번째 ALL ON 진입
 		
@@ -916,7 +956,7 @@ void Line8_Update(void)
 		!on_line[5])
 		)
 		{
-			Line8_State = 3;
+			Line8_State = 5;
 			
 		}
 	}
@@ -927,7 +967,7 @@ void Line8_Update(void)
 	// ALL ON 이후 직진
 	// ========================================================
 
-	else if (Line8_State == 3)
+	else if (Line8_State == 5)
 	{
 		
 		// 왼쪽 모터 전진
@@ -955,12 +995,12 @@ void Line8_Update(void)
 
 		if ((Line8_LeaveAllOn) && (on_line[2] || on_line[3]))
 		{
-			Line8_State = 4;
+			Line8_State = 6;
 			
 			Line8_LeaveAllOn = 0;
 		}
 	}
-	else if(Line8_State == 4)
+	else if(Line8_State == 6)
 	{
 		if((!on_line[0] &&
 		on_line[1] &&
@@ -1006,7 +1046,7 @@ void Line8_Update(void)
 			Motor_SetSpeed(0, 0);
 			
 			_delay_ms(1000);
-			Line8_State = 5; //다른 State로 넘겨줘야 반복 안됨
+			Line8_State = 7; //다른 State로 넘겨줘야 반복 안됨
 			Parallelogram_state = 1; // 평행사변형 시작
 		}
 	}
