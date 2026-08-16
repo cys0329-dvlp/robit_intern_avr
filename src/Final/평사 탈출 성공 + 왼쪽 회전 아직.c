@@ -388,7 +388,9 @@ void Driving_Process(void)
 	Line8_State == 2 ||
 	Line8_State == 4||
 	Line8_State == 6||
-	Parallelogram_state ==4)
+	Parallelogram_state ==2 ||
+	Parallelogram_state == 3||
+	Bar_Trigger == 1)
 	{
 		SLine_Update();
 	}
@@ -834,7 +836,8 @@ void Line8_Update(void)
 {
 	if(Line8_State ==0)
 	{
-		if((on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) || (on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5])) // 0~4까지 켜지면
+		if((on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && on_line[5]) ||
+		 (on_line[0] && on_line[1] &&on_line[2] && on_line[3] &&on_line[4] && !on_line[5]))
 		{
 			Line8_State = 1;
 			// 아직 6개 ON 구간을 벗어나지 않음
@@ -1060,127 +1063,156 @@ void Line8_Update(void)
 
 void Parallelogram_Update(void)
 {
+	
+	int LR_count = 0;
+	
+	
 	if (Parallelogram_state == 1)
 	{
-		// 왼쪽 모터 전진
-		PORTB &= ~(1 << PB0);
-		PORTB |=  (1 << PB1);
+		while(1)
+		{
+			
+			Sensor_Update();
+			
+			if(on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+			{
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
 
-		// 오른쪽 모터 전진
+				// 오른쪽 모터 후진
+				PORTB |= (1 << PB2);
+				PORTB &= ~(1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+				
+				_delay_ms(200);
+				
+				// 왼쪽 모터 전진
+				PORTB &= ~(1 << PB0);
+				PORTB |= (1 << PB1);
+
+				// 오른쪽 모터 후진
+				PORTB |= (1 << PB2);
+				PORTB &= ~(1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+				
+				_delay_ms(200);
+				
+				LR_count++;
+			}
+			
+			else if(!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && on_line[5])
+			{
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+
+				// 오른쪽 모터 후진
+				PORTB |= (1 << PB2);
+				PORTB &= ~(1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+				
+				_delay_ms(200);
+				
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+				
+				_delay_ms(200);
+				LR_count++;
+			}
+			else
+			{
+				// 왼쪽 모터 전진
+				PORTB &= ~(1 << PB0);
+				PORTB |= (1 << PB1);
+
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+			}
+			
+			if(LR_count == 10)
+			{
+				Parallelogram_state = 2;
+				break;
+			}
+		}
+	}
+	else if(Parallelogram_state == 2)
+	{
+		//왼쪽 모터 전진
+		PORTB &= ~(1 << PB0);
+		PORTB |= (1 << PB1);
+		
+		//오른쪽 모터 전진
 		PORTB &= ~(1 << PB2);
 		PORTB |= (1 << PB3);
 
-		Motor_SetSpeed(150, 150);
+		Motor_SetSpeed(90, 90);
+
+		_delay_ms(500);
 		
-		// 딜레이 직후 센서값 다시 읽어서 최신 상태로 판단
-		Sensor_Update();
+		//왼쪽 모터 후진
+		PORTB |= (1 << PB0);
+		PORTB &= ~(1 << PB1);
 		
-		//왼쪽 2개 인식되면 오른쪽으로 살짝 회전하기
-		if(
-		on_line[0] &&
-		on_line[1] &&
-		!on_line[2] &&
-		!on_line[3] &&
-		!on_line[4] &&
-		!on_line[5])
-		{
-			// 왼쪽 모터 전진
-			PORTB &= ~(1 << PB0);
-			PORTB |=  (1 << PB1);
-
-			// 오른쪽 모터 후진
-			PORTB |= (1 << PB2);
-			PORTB &= ~(1 << PB3);
-
-			Motor_SetSpeed(150, 150);
-			
-			_delay_ms(425);
-			
-			Parallelogram_state = 2;
-		}
-	}
-	// 오른쪽으로 회전한 뒤 쭉 직진.
-	else if(Parallelogram_state == 2)
-	{
-		// 왼쪽 모터 전진
-		PORTB &= ~(1 << PB0);
-		PORTB |=  (1 << PB1);
-
-		// 오른쪽 모터 전진
+		//오른쪽 모터 전진
 		PORTB &= ~(1 << PB2);
-		PORTB |=  (1 << PB3);
+		PORTB |= (1 << PB3);
 
-		Motor_SetSpeed(150, 145);
+		Motor_SetSpeed(90, 90);
+
+		_delay_ms(500);
 		
-		Parallelogram_state = 3;
-
-	}
-	else if (Parallelogram_state == 3)
-	{
-		Sensor_Update();
-
-		int cur = (on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]);
-
-		if (cur && !LineFind_Last)   // 꺼짐 -> 켜짐 순간만 카운트
+		
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
-			LineFind_EdgeCount++;
+			Line8_LeaveAllOn = 1;
 		}
-		LineFind_Last = cur;
-
-		if (LineFind_EdgeCount == 2)
+		
+		if (Line8_LeaveAllOn && (on_line[0]||on_line[1]||on_line[2] || on_line[3]||on_line[4] || on_line[5]))
 		{
+			Parallelogram_state = 3;
+			Line8_LeaveAllOn = 0;
+		}
+	}
+	else if(Parallelogram_state == 3)
+	{
+		if(on_line[0] && on_line[1])
+		{
+			//왼쪽 모터 후진
 			PORTB |= (1 << PB0);
 			PORTB &= ~(1 << PB1);
-
+			
+			//오른쪽 모터 전진
 			PORTB &= ~(1 << PB2);
 			PORTB |= (1 << PB3);
 
-			Motor_SetSpeed(60, 60);
-			_delay_ms(100);
-
-			
+			Motor_SetSpeed(90, 150);
 		}
-		Sensor_Update();   // ★ 반드시 회전 후 값을 다시 읽어야 함
+		
 		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
 			Line8_LeaveAllOn = 1;
 		}
-
-		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
+		
+		if (Line8_LeaveAllOn && (on_line[0]||on_line[1]||on_line[2] || on_line[3]||on_line[4] || on_line[5]))
 		{
 			Parallelogram_state = 4;
 			Line8_LeaveAllOn = 0;
-
-			LineFind_EdgeCount = 0;
-			LineFind_Last = 0;
-		}
-	}
-	else if(Parallelogram_state == 4)
-	{
-		if((on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]) || (on_line[0] && on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5]))
-		{
-			
-			// 왼쪽 모터 후진
-			PORTB |= (1 << PB0);
-			PORTB &= ~(1 << PB1);
-
-			// 오른쪽 모터 전진
-			PORTB &= ~(1 << PB2);
-			PORTB |=  (1 << PB3);
-			
-			Motor_SetSpeed(0,150);
-		}
-		Sensor_Update();   // ★ 반드시 회전 후 값을 다시 읽어야 함
-		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
-		{
-			Line8_LeaveAllOn = 1;
-		}
-
-		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
-		{
-			Parallelogram_state = 5;
-			Line8_LeaveAllOn = 0;
-			Bar_Trigger = 1;
+			Bar_Trigger =1;
 		}
 	}
 }
@@ -1201,7 +1233,7 @@ void Bar_Update(void)
 		Sensor_Update();
 		
 		// PSD 값이 155~165 사이면 정지
-		if (psd_value >= 155 && psd_value <= 165)
+		if (psd_value >= 150 && psd_value <= 170)
 		{
 			PORTB &= ~(1 << PB0);
 			PORTB &= ~(1 << PB1);
@@ -1213,9 +1245,23 @@ void Bar_Update(void)
 			
 			return;
 		}
+		else
+		{
+			// 그 외에는 기존 S라인 로직으로 계속 주행
+			SLine_Update();
+		}
 		
-		// 그 외에는 기존 S라인 로직으로 계속 주행
-		SLine_Update();
+		if(on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		{
+			//왼쪽 모터 
+			PORTB &= ~(1 << PB0);
+			PORTB &= ~(1 << PB1);
+			
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
+			
+			Motor_SetSpeed(0, 0);
+		}
 	}
 }
 
