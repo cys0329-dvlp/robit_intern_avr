@@ -1087,7 +1087,7 @@ void Parallelogram_Update(void)
 		{
 			Sensor_Update();
 
-			if (on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+			if (on_line[0])
 			{
 				// 왼쪽 모터 후진
 				PORTB |= (1 << PB0);
@@ -1116,7 +1116,7 @@ void Parallelogram_Update(void)
 				LR_count++;
 				LR_Edge_Count = 1;
 			}
-			else if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && on_line[5])
+			else if (on_line[5])
 			{
 				// 왼쪽 모터 후진
 				PORTB |= (1 << PB0);
@@ -1248,7 +1248,7 @@ void Parallelogram_Update(void)
 
 			Parallelogram_TurnDone = 1;   // 1회 회전 완료 표시
 			
-			 Sensor_Update();
+			Sensor_Update();
 			if(on_line[0] && on_line[1])
 			{
 				PORTA = 1<<PA7;
@@ -1266,15 +1266,15 @@ void Parallelogram_Update(void)
 	else if (Parallelogram_state == 3)
 	{
 		
-			// 왼쪽 모터 후진
-			PORTB |= (1 << PB0);
-			PORTB &= ~(1 << PB1);
-					
-			// 오른쪽 모터 전진
-			PORTB &= ~(1 << PB2);
-			PORTB |= (1 << PB3);
-					
-			Motor_SetSpeed(150, 150);
+		// 왼쪽 모터 후진
+		PORTB |= (1 << PB0);
+		PORTB &= ~(1 << PB1);
+		
+		// 오른쪽 모터 전진
+		PORTB &= ~(1 << PB2);
+		PORTB |= (1 << PB3);
+		
+		Motor_SetSpeed(150, 150);
 		
 
 		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
