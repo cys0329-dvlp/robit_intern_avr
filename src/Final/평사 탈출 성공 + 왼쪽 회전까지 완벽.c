@@ -1307,7 +1307,7 @@ void Bar_Update(void)
 		Sensor_Update();
 		
 		// PSD 값이 155~165 사이면 정지
-		if (psd_value >= 150 && psd_value <= 170)
+		if (psd_value >= 100 && psd_value <= 450)
 		{
 			PORTB &= ~(1 << PB0);
 			PORTB &= ~(1 << PB1);
