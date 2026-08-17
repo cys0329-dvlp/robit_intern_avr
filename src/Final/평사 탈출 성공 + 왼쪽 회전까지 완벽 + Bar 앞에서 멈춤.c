@@ -395,8 +395,7 @@ void Driving_Process(void)
 	Line8_State == 2 ||
 	Line8_State == 4||
 	Line8_State == 6||
-	Parallelogram_state ==2 ||
-	Bar_Trigger == 1)
+	Parallelogram_state ==2)
 	{
 		SLine_Update();
 	}
@@ -1191,7 +1190,7 @@ void Parallelogram_Update(void)
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
 
-				Motor_SetSpeed(90, 90);
+				Motor_SetSpeed(150, 150);
 
 				_delay_ms(200);
 				
@@ -1203,7 +1202,7 @@ void Parallelogram_Update(void)
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
 
-				Motor_SetSpeed(90, 90);
+				Motor_SetSpeed(150, 150);
 
 				_delay_ms(500);
 
@@ -1215,7 +1214,7 @@ void Parallelogram_Update(void)
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
 
-				Motor_SetSpeed(90, 90);
+				Motor_SetSpeed(150, 150);
 
 				_delay_ms(500);
 			}
@@ -1229,7 +1228,7 @@ void Parallelogram_Update(void)
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
 
-				Motor_SetSpeed(90, 90);
+				Motor_SetSpeed(150,150);
 
 				_delay_ms(200);
 
@@ -1241,19 +1240,18 @@ void Parallelogram_Update(void)
 				PORTB &= ~(1 << PB2);
 				PORTB |= (1 << PB3);
 
-				Motor_SetSpeed(90, 90);
+				Motor_SetSpeed(150, 150);
 
 				_delay_ms(500);
 			}
 
 			Parallelogram_TurnDone = 1;   // 1회 회전 완료 표시
-			
-			Sensor_Update();
-			if(on_line[0] && on_line[1])
-			{
-				PORTA = 1<<PA7;
-				Parallelogram_state = 3;
-			}
+		}
+		Sensor_Update();
+		if(on_line[0] && on_line[1])
+		{
+			PORTA = 1<<PA7;
+			Parallelogram_state = 3;
 		}
 	}
 
@@ -1276,7 +1274,21 @@ void Parallelogram_Update(void)
 		
 		Motor_SetSpeed(150, 150);
 		
-
+		if(!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		{
+			// 왼쪽 모터 전진
+			PORTB &= ~(1 << PB0);
+			PORTB |= (1 << PB1);
+			
+			// 오른쪽 모터 후진
+			PORTB |= (1 << PB2);
+			PORTB &= ~(1 << PB3);
+			
+			Motor_SetSpeed(150, 150);
+			
+		}
+		
+	
 		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
 			Line8_LeaveAllOn = 1;
@@ -1321,20 +1333,7 @@ void Bar_Update(void)
 		}
 		else
 		{
-			// 그 외에는 기존 S라인 로직으로 계속 주행
 			SLine_Update();
-		}
-		
-		if(on_line[0] && on_line[1] && on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
-		{
-			//왼쪽 모터
-			PORTB &= ~(1 << PB0);
-			PORTB &= ~(1 << PB1);
-			
-			PORTB &= ~(1 << PB2);
-			PORTB &= ~(1 << PB3);
-			
-			Motor_SetSpeed(0, 0);
 		}
 	}
 }
