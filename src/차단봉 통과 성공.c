@@ -1333,6 +1333,19 @@ void Bar_Update(void)
 		}
 		else
 		{
+			if(!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+			{
+				// 왼쪽 모터 후진
+				PORTB |= (1 << PB0);
+				PORTB &= ~(1 << PB1);
+				
+				// 오른쪽 모터 전진
+				PORTB &= ~(1 << PB2);
+				PORTB |= (1 << PB3);
+				
+				Motor_SetSpeed(150, 150);
+				
+			}
 			SLine_Update();
 		}
 	}
