@@ -395,7 +395,10 @@ void Driving_Process(void)
 	Line8_State == 2 ||
 	Line8_State == 4||
 	Line8_State == 6||
-	Parallelogram_state ==2)
+	Parallelogram_state ==2 ||
+	Bar_Trigger == 3 ||
+	Bar_Trigger == 4 || 
+	Bar_Trigger == 6)
 	{
 		SLine_Update();
 	}
@@ -1250,7 +1253,6 @@ void Parallelogram_Update(void)
 		Sensor_Update();
 		if(on_line[0] && on_line[1])
 		{
-			PORTA = 1<<PA7;
 			Parallelogram_state = 3;
 		}
 	}
@@ -1351,40 +1353,17 @@ void Bar_Update(void)
 		
 		if(on_line[0] && on_line[1] && on_line[2] && on_line[3])
 		{
-			Bar_Trigger = 2;
-		}
-	}
-	
-	else if(Bar_Trigger == 2)
-	{
-		// 왼쪽 모터 후진
-		PORTB |= (1 << PB0);
-		PORTB &= ~(1 << PB1);
-		
-		// 오른쪽 모터 전진
-		PORTB &= ~(1 << PB2);
-		PORTB |= (1 << PB3);
-		
-		Motor_SetSpeed(150, 150);
-		
-		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
-		{
-			Line8_LeaveAllOn = 1;
-		}
-
-		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
-		{
-			Bar_Trigger = 3;
-			Line8_LeaveAllOn = 0;
-		}
-		
-    }
-	
-	else if(Bar_Trigger == 3)
-	{
-		if(on_line[0] && on_line[1] && on_line[2] && on_line[3] && on_line[4] && on_line[5])
-		{
-			_delay_ms(500);
+			// 왼쪽 모터 전진
+			PORTB &= ~(1 << PB0);
+			PORTB |= (1 << PB1);
+			
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
+			
+			Motor_SetSpeed(150, 150);
+			
+			_delay_ms(180);
 			
 			// 왼쪽 모터 후진
 			PORTB |= (1 << PB0);
@@ -1396,16 +1375,124 @@ void Bar_Update(void)
 			
 			Motor_SetSpeed(150, 150);
 			
-			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
-			{
-				Line8_LeaveAllOn = 1;
-			}
+			
+			Bar_Trigger = 2;
+		}
+	}
+	
+	else if(Bar_Trigger == 2)
+	{
+		Sensor_Update();
 
-			if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
-			{
-				Bar_Trigger = 4;
-				Line8_LeaveAllOn = 0;
-			}
+		// 모든 센서 OFF
+		if (!on_line[0] &&
+		!on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		!on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+
+		// 중앙 라인 재발견
+		if (Line8_LeaveAllOn &&
+		(on_line[2] || on_line[3]))
+		{
+			Bar_Trigger = 3;
+			Line8_LeaveAllOn = 0;
+		}
+		
+    }
+	
+	else if(Bar_Trigger == 3)
+	{
+		if(on_line[0] && on_line[1] && on_line[2] && on_line[3] && on_line[4]&&on_line[5])
+		{
+			// 잠깐 정지했다가 회전
+			// 왼쪽 모터 후진
+			PORTB &= ~(1 << PB0);
+			PORTB &= ~(1 << PB1);
+			
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
+			
+			Motor_SetSpeed(0, 0);
+			
+			_delay_ms(300);
+			
+			
+			// 왼쪽 모터 후진
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+			
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
+			
+			Motor_SetSpeed(150, 150);
+			
+			Bar_Trigger = 4;
+		}
+	}
+	
+	else if (Bar_Trigger == 4)
+	{
+		
+		if (on_line[0] && on_line[1] && on_line[2])
+		{
+			Bar_Trigger = 5;
+		}
+	}
+	
+	else if(Bar_Trigger == 5)
+	{
+			// 왼쪽 후진, 오른쪽 전진 (좌회전)
+			PORTB |= (1 << PB0);  PORTB &= ~(1 << PB1);
+			PORTB &= ~(1 << PB2); PORTB |= (1 << PB3);
+			Motor_SetSpeed(150, 150);
+
+			Bar_Trigger = 6;
+		
+	}
+	else if(Bar_Trigger == 6)
+	{
+		Sensor_Update();
+		
+		// 모든 센서 OFF
+		if (!on_line[0] &&
+		!on_line[1] &&
+		!on_line[2] &&
+		!on_line[3] &&
+		!on_line[4] &&
+		!on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+
+		// 중앙 라인 재발견
+		if (Line8_LeaveAllOn &&
+		(on_line[2] || on_line[3]))
+		{
+			Bar_Trigger = 7;
+			Line8_LeaveAllOn = 0;
+		}
+	}
+	else if(Bar_Trigger == 7)
+	{
+		if(on_line[0] && on_line[1] && on_line[2] && on_line[3] && on_line[4]&&on_line[5])
+		{
+			// 계속 좌회전
+			PORTB &= ~(1 << PB0);
+			PORTB &= ~(1 << PB1);
+
+			PORTB &= ~(1 << PB2);
+			PORTB &= ~(1 << PB3);
+			
+			Motor_SetSpeed(0, 0);
+
+			PORTA &= ~(1<<PA7);
 		}
 	}
 }
