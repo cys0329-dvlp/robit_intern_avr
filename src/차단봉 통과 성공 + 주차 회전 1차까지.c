@@ -1348,6 +1348,65 @@ void Bar_Update(void)
 			}
 			SLine_Update();
 		}
+		
+		if(on_line[0] && on_line[1] && on_line[2] && on_line[3])
+		{
+			Bar_Trigger = 2;
+		}
+	}
+	
+	else if(Bar_Trigger == 2)
+	{
+		// 왼쪽 모터 후진
+		PORTB |= (1 << PB0);
+		PORTB &= ~(1 << PB1);
+		
+		// 오른쪽 모터 전진
+		PORTB &= ~(1 << PB2);
+		PORTB |= (1 << PB3);
+		
+		Motor_SetSpeed(150, 150);
+		
+		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+		{
+			Line8_LeaveAllOn = 1;
+		}
+
+		if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
+		{
+			Bar_Trigger = 3;
+			Line8_LeaveAllOn = 0;
+		}
+		
+    }
+	
+	else if(Bar_Trigger == 3)
+	{
+		if(on_line[0] && on_line[1] && on_line[2] && on_line[3] && on_line[4] && on_line[5])
+		{
+			_delay_ms(500);
+			
+			// 왼쪽 모터 후진
+			PORTB |= (1 << PB0);
+			PORTB &= ~(1 << PB1);
+			
+			// 오른쪽 모터 전진
+			PORTB &= ~(1 << PB2);
+			PORTB |= (1 << PB3);
+			
+			Motor_SetSpeed(150, 150);
+			
+			if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
+			{
+				Line8_LeaveAllOn = 1;
+			}
+
+			if (Line8_LeaveAllOn && (on_line[2] || on_line[3]))
+			{
+				Bar_Trigger = 4;
+				Line8_LeaveAllOn = 0;
+			}
+		}
 	}
 }
 
