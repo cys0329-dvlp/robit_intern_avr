@@ -435,7 +435,7 @@ void Sensor_Update(void)
 	}
 
 
-	// 4/5번 센서 크로스토크 보정
+
 	ADC_Fix();
 
 
