@@ -1288,7 +1288,7 @@ void Parallelogram_Update(void)
 			
 		}
 		
-	
+		
 		if (!on_line[0] && !on_line[1] && !on_line[2] && !on_line[3] && !on_line[4] && !on_line[5])
 		{
 			Line8_LeaveAllOn = 1;
