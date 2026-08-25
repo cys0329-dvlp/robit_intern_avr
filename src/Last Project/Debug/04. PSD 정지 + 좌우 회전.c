@@ -105,7 +105,7 @@
 // 회전 / 직진 설정
 // ============================================================
 
-#define TURN_SPEED          250
+#define TURN_SPEED          180
 #define FORWARD_SPEED       180
 
 #define ANGLE_TOLERANCE     2.0
@@ -150,8 +150,8 @@
 // PSD 값이 250 이하이면 정지
 // ============================================================
 
-#define PF0_PIVOT_MIN        320
-#define PF0_PIVOT_MAX        330
+#define PF0_PIVOT_MIN        330
+#define PF0_PIVOT_MAX        420
 
 #define PF0_FINAL_THRESHOLD  250
 
