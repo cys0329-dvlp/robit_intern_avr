@@ -127,9 +127,9 @@
 // ============================================================
 
 #define PF0_PIVOT_THRESHOLD   250
-#define PF0_FINAL_THRESHOLD   150
+#define PF0_FINAL_THRESHOLD   250
 
-#define TAG_DISTANCE_STOP     30
+#define TAG_DISTANCE_STOP     45
 
 
 // ============================================================
