@@ -15,10 +15,6 @@
 
 #define MAX_ID 6
 
-// 픽셀 → cm 변환값
-#define CM_PER_PIXEL 0.278
-
-// 각도 계산용 PI
 #define PI 3.14159265359
 
 
@@ -54,7 +50,6 @@
 
 // =====================================================
 // ID 데이터
-// ID5, ID6만 사용
 // =====================================================
 
 uint8_t id_detected[7];
@@ -63,17 +58,33 @@ uint16_t id_x[7];
 uint16_t id_y[7];
 
 
-// 픽셀 기준 거리
+// =====================================================
+// 거리
+// 픽셀 단위
+// =====================================================
+
 uint16_t id_distance = 0;
 
 
-// cm 거리
-// 10배 저장
-// 예: 123 = 12.3cm
-uint16_t distance_cm_x10 = 0;
+// =====================================================
+// 각도
+//
+// ID5 기준 ID6 방향
+//
+//          0°
+//           ↑
+//           |
+// -90° ← ---+--- → +90°
+//           |
+//           ↓
+//         ±180°
+//
+// 위      = 0°
+// 오른쪽  = +90°
+// 아래    = ±180°
+// 왼쪽    = -90°
+// =====================================================
 
-
-// ID5 기준 ID6 각도
 int16_t id_angle = 0;
 
 
@@ -217,7 +228,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	uint8_t checksum = 0;
 
 
-	// Header 0x55 찾기
+	// -------------------------------------------------
+	// Header 0x55
+	// -------------------------------------------------
+
 	while (1)
 	{
 		if (!UART0_ReadByteTimeout(&data))
@@ -234,7 +248,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	buffer[index++] = data;
 
 
-	// Header 0xAA 확인
+	// -------------------------------------------------
+	// Header 0xAA
+	// -------------------------------------------------
+
 	if (!UART0_ReadByteTimeout(&data))
 	{
 		return 0;
@@ -248,7 +265,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	buffer[index++] = data;
 
 
-	// Address 확인
+	// -------------------------------------------------
+	// Address
+	// -------------------------------------------------
+
 	if (!UART0_ReadByteTimeout(&data))
 	{
 		return 0;
@@ -262,7 +282,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	buffer[index++] = data;
 
 
+	// -------------------------------------------------
 	// Length
+	// -------------------------------------------------
+
 	if (!UART0_ReadByteTimeout(&length))
 	{
 		return 0;
@@ -277,7 +300,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	}
 
 
+	// -------------------------------------------------
 	// Command + Data
+	// -------------------------------------------------
+
 	for (uint8_t i = 0; i < length + 1; i++)
 	{
 		if (!UART0_ReadByteTimeout(&data))
@@ -289,7 +315,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	}
 
 
-	// Checksum 수신
+	// -------------------------------------------------
+	// Checksum
+	// -------------------------------------------------
+
 	if (!UART0_ReadByteTimeout(&data))
 	{
 		return 0;
@@ -298,7 +327,10 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	buffer[index++] = data;
 
 
+	// -------------------------------------------------
 	// Checksum 계산
+	// -------------------------------------------------
+
 	for (uint8_t i = 0; i < index - 1; i++)
 	{
 		checksum += buffer[i];
@@ -309,6 +341,7 @@ uint8_t HuskyLens_ReadPacket(uint8_t *buffer)
 	{
 		return 0;
 	}
+
 
 	return 1;
 }
@@ -326,6 +359,7 @@ uint16_t GetUInt16(uint8_t low, uint8_t high)
 
 // =====================================================
 // HuskyLens 데이터 업데이트
+//
 // ID5, ID6만 저장
 // =====================================================
 
@@ -336,20 +370,32 @@ uint8_t HuskyLens_Update(void)
 	uint16_t block_count;
 
 
-	// ID5, ID6 검출 상태 초기화
+	// -------------------------------------------------
+	// 검출 상태 초기화
+	// -------------------------------------------------
+
 	id_detected[5] = 0;
 	id_detected[6] = 0;
 
 
+	// -------------------------------------------------
 	// UART 버퍼 초기화
+	// -------------------------------------------------
+
 	UART0_ClearBuffer();
 
 
+	// -------------------------------------------------
 	// BLOCK 요청
+	// -------------------------------------------------
+
 	HuskyLens_RequestBlocks();
 
 
+	// -------------------------------------------------
 	// RETURN_INFO 수신
+	// -------------------------------------------------
+
 	if (!HuskyLens_ReadPacket(packet))
 	{
 		return 0;
@@ -362,12 +408,18 @@ uint8_t HuskyLens_Update(void)
 	}
 
 
+	// -------------------------------------------------
 	// BLOCK 개수
+	// -------------------------------------------------
+
 	block_count =
 	GetUInt16(packet[5], packet[6]);
 
 
+	// -------------------------------------------------
 	// BLOCK 데이터 수신
+	// -------------------------------------------------
+
 	for (uint16_t i = 0; i < block_count; i++)
 	{
 		uint16_t id;
@@ -381,26 +433,44 @@ uint8_t HuskyLens_Update(void)
 		}
 
 
+		// -------------------------------------------------
 		// BLOCK인지 확인
+		// -------------------------------------------------
+
 		if (packet[4] != HUSKY_RETURN_BLOCK)
 		{
 			continue;
 		}
 
 
+		// -------------------------------------------------
 		// X 좌표
-		x = GetUInt16(packet[5], packet[6]);
+		// -------------------------------------------------
+
+		x =
+		GetUInt16(packet[5], packet[6]);
 
 
+		// -------------------------------------------------
 		// Y 좌표
-		y = GetUInt16(packet[7], packet[8]);
+		// -------------------------------------------------
+
+		y =
+		GetUInt16(packet[7], packet[8]);
 
 
+		// -------------------------------------------------
 		// ID
-		id = GetUInt16(packet[13], packet[14]);
+		// -------------------------------------------------
+
+		id =
+		GetUInt16(packet[13], packet[14]);
 
 
+		// -------------------------------------------------
 		// ID5, ID6만 저장
+		// -------------------------------------------------
+
 		if (id == 5 || id == 6)
 		{
 			id_detected[id] = 1;
@@ -410,6 +480,7 @@ uint8_t HuskyLens_Update(void)
 		}
 	}
 
+
 	return 1;
 }
 
@@ -418,6 +489,9 @@ uint8_t HuskyLens_Update(void)
 // ID5 - ID6 픽셀 거리 계산
 //
 // 거리 = √((X6-X5)² + (Y6-Y5)²)
+//
+// 결과:
+// pixel 단위
 // =====================================================
 
 uint16_t CalculateDistance(void)
@@ -435,11 +509,15 @@ uint16_t CalculateDistance(void)
 
 
 	// X축 차이
-	dx = (int32_t)id_x[6] - (int32_t)id_x[5];
+	dx =
+	(int32_t)id_x[6] -
+	(int32_t)id_x[5];
 
 
 	// Y축 차이
-	dy = (int32_t)id_y[6] - (int32_t)id_y[5];
+	dy =
+	(int32_t)id_y[6] -
+	(int32_t)id_y[5];
 
 
 	// 피타고라스 공식
@@ -453,17 +531,30 @@ uint16_t CalculateDistance(void)
 
 
 // =====================================================
-// 픽셀 거리 → cm 변환
+// ID5 기준 ID6의 각도 계산
 //
-// 1 pixel = 0.278 cm
+// 기준:
+//             0°
+//              ↑
+//              |
+//   -90° ← ----+---- → +90°
+//              |
+//              ↓
+//            ±180°
 //
-// 결과는 0.1cm 단위
-// 예: 123 → 12.3cm
+// 화면 좌표:
+// X → 오른쪽 증가
+// Y → 아래쪽 증가
+//
+// atan2(dx, -dy) 사용
 // =====================================================
 
-uint16_t CalculateDistanceCMx10(void)
+int16_t CalculateAngle(void)
 {
-	double distance_cm;
+	int32_t dx;
+	int32_t dy;
+
+	double angle;
 
 
 	if (!id_detected[5] || !id_detected[6])
@@ -472,76 +563,48 @@ uint16_t CalculateDistanceCMx10(void)
 	}
 
 
-	distance_cm =
-	(double)id_distance * CM_PER_PIXEL;
+	// ID5 → ID6
+	dx =
+	(int32_t)id_x[6] -
+	(int32_t)id_x[5];
+
+	dy =
+	(int32_t)id_y[6] -
+	(int32_t)id_y[5];
 
 
-	// 0.1cm 단위로 변환
-	return (uint16_t)(distance_cm * 10.0 + 0.5);
-}
+	// 위쪽을 0°로 설정
+	// 오른쪽 = +90°
+	// 왼쪽 = -90°
+	angle =
+	atan2(
+	(double)dx,
+	(double)(-dy)
+	)
+	* 180.0 / PI;
 
 
-// =====================================================
-// ID5 기준 ID6의 각도 계산
-//
-// atan2(dy, dx)
-//
-// 화면 기준:
-//
-//            270°
-//              ↑
-//              |
-// 180°  ← ----+---- → 0°
-//              |
-//              ↓
-//             90°
-//
-// ID5를 기준점으로 ID6 방향 계산
-// =====================================================
+	// -180° ~ +180° 범위
+	if (angle > 180.0)
+	{
+		angle -= 360.0;
+	}
 
-int16_t CalculateAngle(void)
-{
-    int32_t dx;
-    int32_t dy;
+	if (angle < -180.0)
+	{
+		angle += 360.0;
+	}
 
-    double angle;
 
-    if (!id_detected[5] || !id_detected[6])
-    {
-        return 0;
-    }
-
-    // ID5 → ID6
-    dx = (int32_t)id_x[6] - (int32_t)id_x[5];
-    dy = (int32_t)id_y[6] - (int32_t)id_y[5];
-
-    /*
-        원하는 기준
-
-               90
-                ↑
-                |
-        0 ← ----+---- → 180
-                |
-                ↓
-               270
-
-        화면 좌표는 Y가 아래로 증가하므로
-        atan2(-dy, -dx)를 사용
-    */
-
-    angle = atan2(
-                (double)(-dy),
-                (double)(-dx)
-            ) * 180.0 / PI;
-
-    // 음수면 0~360도로 변환
-    if (angle < 0)
-    {
-        angle += 360.0;
-    }
-
-    return (int16_t)(angle + 0.5);
+	// 반올림
+	if (angle >= 0)
+	{
+		return (int16_t)(angle + 0.5);
+	}
+	else
+	{
+		return (int16_t)(angle - 0.5);
+	}
 }
 
 
@@ -717,7 +780,6 @@ void LCD_SendData(uint8_t data)
 	high =
 	(data & 0xF0) | LCD_RS;
 
-
 	low =
 	((data << 4) & 0xF0) | LCD_RS;
 
@@ -807,7 +869,7 @@ void LCD_Print(const char *str)
 
 
 // =====================================================
-// LCD 숫자 출력
+// LCD 양수 숫자 출력
 // =====================================================
 
 void LCD_PrintUInt(uint16_t value)
@@ -820,7 +882,6 @@ void LCD_PrintUInt(uint16_t value)
 	if (value == 0)
 	{
 		LCD_SendData('0');
-
 		return;
 	}
 
@@ -842,13 +903,30 @@ void LCD_PrintUInt(uint16_t value)
 
 
 // =====================================================
+// LCD 부호 포함 정수 출력
+// =====================================================
+
+void LCD_PrintInt(int16_t value)
+{
+	if (value < 0)
+	{
+		LCD_SendData('-');
+
+		value = -value;
+	}
+
+	LCD_PrintUInt((uint16_t)value);
+}
+
+
+// =====================================================
 // LCD 거리 + 각도 출력
 //
 // 1번째 줄:
-// DIST:20.0cm
+// DIST:120px
 //
 // 2번째 줄:
-// ANGLE:45deg
+// ANGLE:-45deg
 // =====================================================
 
 void LCD_DisplayDistanceAngle(void)
@@ -863,22 +941,16 @@ void LCD_DisplayDistanceAngle(void)
 	if (id_detected[5] && id_detected[6])
 	{
 		// ============================
-		// 첫 번째 줄 : 거리
+		// 첫 번째 줄 : 픽셀 거리
 		// ============================
 
 		LCD_SetCursor(0, 0);
 
 		LCD_Print("DIST:");
 
-		// 정수 부분
-		LCD_PrintUInt(distance_cm_x10 / 10);
+		LCD_PrintUInt(id_distance);
 
-		LCD_SendData('.');
-
-		// 소수 첫째 자리
-		LCD_PrintUInt(distance_cm_x10 % 10);
-
-		LCD_Print("cm");
+		LCD_Print("px");
 
 
 		// ============================
@@ -889,7 +961,7 @@ void LCD_DisplayDistanceAngle(void)
 
 		LCD_Print("ANGLE:");
 
-		LCD_PrintUInt((uint16_t)id_angle);
+		LCD_PrintInt(id_angle);
 
 		LCD_Print("deg");
 	}
@@ -969,7 +1041,7 @@ int main(void)
 
 
 		// ---------------------------------------------
-		// 두 ID 사이 픽셀 거리 계산
+		// ID5 - ID6 픽셀 거리 계산
 		// ---------------------------------------------
 
 		id_distance =
@@ -977,15 +1049,7 @@ int main(void)
 
 
 		// ---------------------------------------------
-		// 픽셀 → cm 변환
-		// ---------------------------------------------
-
-		distance_cm_x10 =
-		CalculateDistanceCMx10();
-
-
-		// ---------------------------------------------
-		// ID5 기준 ID6의 각도 계산
+		// ID5 기준 ID6 각도 계산
 		// ---------------------------------------------
 
 		id_angle =
@@ -1000,7 +1064,7 @@ int main(void)
 
 
 		// ---------------------------------------------
-		// LCD에 거리 + 각도 실시간 출력
+		// LCD 출력
 		// ---------------------------------------------
 
 		LCD_DisplayDistanceAngle();
