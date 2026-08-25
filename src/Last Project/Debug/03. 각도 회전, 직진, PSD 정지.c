@@ -89,6 +89,19 @@
 
 
 // ============================================================
+// 그리퍼 서보
+//
+// PB7 = Servo Signal
+// ============================================================
+
+#define GRIPPER_SERVO_PIN PB7
+
+#define SERVO_MIN_US      500
+#define SERVO_MAX_US      2500
+#define SERVO_PERIOD_MS   20
+
+
+// ============================================================
 // 회전 / 직진 설정
 // ============================================================
 
@@ -97,8 +110,26 @@
 
 #define ANGLE_TOLERANCE     2.0
 
+
+// ============================================================
+// PSD 설정
+//
 // PF0 = ADC0
-#define PF0_STOP_THRESHOLD  250
+//
+// 1차:
+// 태그 사이 30 pixel에서 정지
+//
+// 2차:
+// 피벗턴 중 ADC <= 250이면 물체 발견
+//
+// 3차:
+// 최종 직진 중 ADC <= 150이면 종료
+// ============================================================
+
+#define PF0_PIVOT_THRESHOLD   250
+#define PF0_FINAL_THRESHOLD   150
+
+#define TAG_DISTANCE_STOP     30
 
 
 // ============================================================
@@ -148,7 +179,7 @@ int16_t id_angle = 0;
 
 
 // ============================================================
-// 회전 상태
+// 초기 회전 상태
 // ============================================================
 
 uint8_t rotation_active = 0;
@@ -158,11 +189,40 @@ float target_angle = 0.0;
 
 
 // ============================================================
-// 직진 상태
+// 초기 직진 상태
+//
+// ID 거리 30 pixel까지 이동
 // ============================================================
 
-uint8_t forward_active = 0;
-uint8_t forward_finished = 0;
+uint8_t tag_forward_active = 0;
+uint8_t tag_forward_finished = 0;
+
+
+// ============================================================
+// PSD 피벗 탐색 상태
+// ============================================================
+
+uint8_t pivot_active = 0;
+uint8_t pivot_finished = 0;
+
+float pivot_target_angle = 0.0;
+
+
+// ============================================================
+// 최종 직진 상태
+//
+// PSD 150까지 이동
+// ============================================================
+
+uint8_t final_forward_active = 0;
+uint8_t final_finished = 0;
+
+
+// ============================================================
+// 그리퍼 상태
+// ============================================================
+
+uint8_t gripper_finished = 0;
 
 
 // ============================================================
@@ -173,7 +233,7 @@ float angle_z = 0.0;
 
 
 // ============================================================
-// LED 단계 표시 함수
+// LED 단계 표시
 // ============================================================
 
 void LED_SetStage(uint8_t stage)
@@ -305,21 +365,15 @@ _FDEV_SETUP_WRITE
 
 void ADC_Init(void)
 {
-	// PF0 입력
 	DDRF &=
 	~(1 << PF0);
 
-	// Pull-up 사용 안 함
 	PORTF &=
 	~(1 << PF0);
 
-	// AVCC 기준전압
 	ADMUX =
 	(1 << REFS0);
 
-	// ADC Enable
-	// Prescaler = 128
-	// 16MHz / 128 = 125kHz
 	ADCSRA =
 	(1 << ADEN) |
 	(1 << ADPS2) |
@@ -334,16 +388,13 @@ void ADC_Init(void)
 
 uint16_t ADC_Read(uint8_t channel)
 {
-	// ADC0~ADC7 선택
 	ADMUX =
 	(1 << REFS0) |
 	(channel & 0x07);
 
-	// 변환 시작
 	ADCSRA |=
 	(1 << ADSC);
 
-	// 변환 완료 대기
 	while (ADCSRA &
 	(1 << ADSC));
 
@@ -1212,18 +1263,12 @@ void Motor_Stop(void)
 void Motor_Forward(uint8_t speed)
 {
 	// 왼쪽 모터 전진
-	PORTB |=
-	(1 << LEFT_IN1);
-
-	PORTB &=
-	~(1 << LEFT_IN2);
+	PORTB &= ~(1 << LEFT_IN1);
+	PORTB |=  (1 << LEFT_IN2);
 
 	// 오른쪽 모터 전진
-	PORTB |=
-	(1 << RIGHT_IN1);
-
-	PORTB &=
-	~(1 << RIGHT_IN2);
+	PORTB &= ~(1 << RIGHT_IN1);
+	PORTB |=  (1 << RIGHT_IN2);
 
 	OCR1A = speed;
 	OCR1B = speed;
@@ -1231,7 +1276,10 @@ void Motor_Forward(uint8_t speed)
 
 
 // ============================================================
-// 오른쪽 회전
+// 오른쪽 피벗
+//
+// 왼쪽 모터 전진
+// 오른쪽 모터 정지
 // ============================================================
 
 void Motor_TurnRight(uint8_t speed)
@@ -1254,7 +1302,10 @@ void Motor_TurnRight(uint8_t speed)
 
 
 // ============================================================
-// 왼쪽 회전
+// 왼쪽 피벗
+//
+// 왼쪽 모터 정지
+// 오른쪽 모터 전진
 // ============================================================
 
 void Motor_TurnLeft(uint8_t speed)
@@ -1273,6 +1324,93 @@ void Motor_TurnLeft(uint8_t speed)
 
 	OCR1A = 0;
 	OCR1B = speed;
+}
+
+
+// ============================================================
+// 그리퍼 서보 초기화
+// ============================================================
+
+void GripperServo_Init(void)
+{
+	DDRB |=
+	(1 << GRIPPER_SERVO_PIN);
+
+	PORTB &=
+	~(1 << GRIPPER_SERVO_PIN);
+}
+
+
+// ============================================================
+// 그리퍼 서보 각도 제어
+//
+// 0도   = 500us
+// 270도 = 2500us
+// ============================================================
+
+void GripperServo_SetAngle(uint16_t angle)
+{
+	uint16_t pulse_us;
+	uint16_t low_us;
+
+	if (angle > 270)
+	{
+		angle = 270;
+	}
+
+	pulse_us =
+	SERVO_MIN_US +
+	(
+	(uint32_t)
+	(SERVO_MAX_US - SERVO_MIN_US)
+	* angle
+	/ 270
+	);
+
+	low_us =
+	(SERVO_PERIOD_MS * 1000UL)
+	- pulse_us;
+
+	PORTB |=
+	(1 << GRIPPER_SERVO_PIN);
+
+	while (pulse_us--)
+	{
+		_delay_us(1);
+	}
+
+	PORTB &=
+	~(1 << GRIPPER_SERVO_PIN);
+
+	while (low_us--)
+	{
+		_delay_us(1);
+	}
+}
+
+
+// ============================================================
+// 그리퍼 270도 파지
+// ============================================================
+
+void GripperServo_270(void)
+{
+	uint8_t i;
+
+	printf(
+	"GRIPPER 270 DEG START\n"
+	);
+
+	for (i = 0; i < 50; i++)
+	{
+		GripperServo_SetAngle(270);
+	}
+
+	gripper_finished = 1;
+
+	printf(
+	"GRIPPER 270 DEG COMPLETE\n"
+	);
 }
 
 
@@ -1329,7 +1467,36 @@ int16_t gyro_z_offset
 
 
 // ============================================================
-// 회전 시작
+// 각도 차이 계산
+// ============================================================
+
+float AngleError(
+float target,
+float current
+)
+{
+	float error;
+
+	error =
+	target -
+	current;
+
+	while (error > 180.0)
+	{
+		error -= 360.0;
+	}
+
+	while (error <= -180.0)
+	{
+		error += 360.0;
+	}
+
+	return error;
+}
+
+
+// ============================================================
+// 초기 회전 시작
 // ============================================================
 
 void StartRotation(void)
@@ -1343,11 +1510,22 @@ void StartRotation(void)
 	rotation_active = 1;
 	rotation_finished = 0;
 
-	forward_active = 0;
-	forward_finished = 0;
+	tag_forward_active = 0;
+	tag_forward_finished = 0;
 
-	// 단계 6
+	pivot_active = 0;
+	pivot_finished = 0;
+
+	final_forward_active = 0;
+	final_finished = 0;
+
+	gripper_finished = 0;
+
 	LED_SetStage(6);
+
+	printf(
+	"INITIAL ROTATION START\n"
+	);
 
 	printf(
 	"TARGET ANGLE: %d deg\n",
@@ -1357,7 +1535,7 @@ void StartRotation(void)
 
 
 // ============================================================
-// 목표각 도달 여부
+// 초기 회전 완료 여부
 // ============================================================
 
 uint8_t RotationReached(void)
@@ -1365,18 +1543,10 @@ uint8_t RotationReached(void)
 	float error;
 
 	error =
-	target_angle -
-	angle_z;
-
-	while (error > 180.0)
-	{
-		error -= 360.0;
-	}
-
-	while (error <= -180.0)
-	{
-		error += 360.0;
-	}
+	AngleError(
+	target_angle,
+	angle_z
+	);
 
 	if (fabs(error) <=
 	ANGLE_TOLERANCE)
@@ -1389,33 +1559,41 @@ uint8_t RotationReached(void)
 
 
 // ============================================================
-// 회전 제어
+// 초기 회전 제어
 // ============================================================
 
 void Rotation_Control(void)
 {
+	float error;
+
 	if (!rotation_active)
 	{
 		return;
 	}
 
+	error =
+	AngleError(
+	target_angle,
+	angle_z
+	);
+
 	// 목표각 도달
-	if (RotationReached())
+	if (fabs(error) <=
+	ANGLE_TOLERANCE)
 	{
 		Motor_Stop();
 
 		rotation_active = 0;
 		rotation_finished = 1;
 
-		// 회전 완료 후 직진 시작
-		forward_active = 1;
-		forward_finished = 0;
+		// 초기 직진 시작
+		tag_forward_active = 1;
+		tag_forward_finished = 0;
 
-		// 단계 7
 		LED_SetStage(7);
 
 		printf(
-		"ROTATION COMPLETE\n"
+		"INITIAL ROTATION COMPLETE\n"
 		);
 
 		printf(
@@ -1424,7 +1602,7 @@ void Rotation_Control(void)
 		);
 
 		printf(
-		"FORWARD START\n"
+		"TAG DISTANCE FORWARD START\n"
 		);
 
 		_delay_ms(300);
@@ -1432,35 +1610,396 @@ void Rotation_Control(void)
 		return;
 	}
 
-	// 목표각이 +이면 오른쪽
-	if (target_angle > 0)
+	// 오른쪽 회전
+	if (error > 0)
 	{
 		Motor_TurnRight(
 		TURN_SPEED
 		);
 	}
 
-	// 목표각이 -이면 왼쪽
-	else if (target_angle < 0)
+	// 왼쪽 회전
+	else
 	{
 		Motor_TurnLeft(
 		TURN_SPEED
 		);
 	}
+}
 
-	// 목표각 = 0
-	else
+
+// ============================================================
+// 태그 거리 직진 시작
+// ============================================================
+
+void StartTagForward(void)
+{
+	tag_forward_active = 1;
+	tag_forward_finished = 0;
+
+	Motor_Forward(
+	FORWARD_SPEED
+	);
+
+	printf(
+	"FORWARD TO TAG\n"
+	);
+}
+
+
+// ============================================================
+// 태그 거리 30 pixel 도달 확인
+// ============================================================
+
+uint8_t TagDistanceReached(void)
+{
+	if (!id_detected[5] ||
+	!id_detected[6])
+	{
+		return 0;
+	}
+
+	if (id_distance <=
+	TAG_DISTANCE_STOP)
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+
+// ============================================================
+// 태그 거리 직진 제어
+// ============================================================
+
+void TagForward_Control(void)
+{
+	if (!tag_forward_active)
+	{
+		return;
+	}
+
+	// --------------------------------------------------------
+	// HuskyLens에서 ID5 / ID6 계속 갱신
+	// --------------------------------------------------------
+
+	HuskyLens_Update();
+
+	id_distance =
+	CalculateDistance();
+
+
+	// --------------------------------------------------------
+	// 거리 30 pixel 이하
+	// --------------------------------------------------------
+
+	if (TagDistanceReached())
 	{
 		Motor_Stop();
 
-		rotation_active = 0;
-		rotation_finished = 1;
+		tag_forward_active = 0;
+		tag_forward_finished = 1;
 
-		forward_active = 1;
-		forward_finished = 0;
+		printf(
+		"TAG DISTANCE <= %d PIXEL\n",
+		TAG_DISTANCE_STOP
+		);
+
+		printf(
+		"TAG DISTANCE: %d PIXEL\n",
+		id_distance
+		);
+
+		// ----------------------------------------------------
+		// 현재 위치를 피벗 기준 0도로 설정
+		// ----------------------------------------------------
+
+		angle_z = 0.0;
+
+		pivot_active = 1;
+		pivot_finished = 0;
+
+		// 첫 번째는 왼쪽 90°
+		pivot_target_angle = -90.0;
 
 		LED_SetStage(7);
+
+		printf(
+		"PIVOT SEARCH START\n"
+		);
+
+		printf(
+		"PIVOT TARGET: -90 DEG\n"
+		);
 	}
+	else
+	{
+		Motor_Forward(
+		FORWARD_SPEED
+		);
+	}
+}
+
+
+// ============================================================
+// 피벗 목표각 도달 여부
+// ============================================================
+
+uint8_t PivotReached(void)
+{
+	float error;
+
+	error =
+	AngleError(
+	pivot_target_angle,
+	angle_z
+	);
+
+	if (fabs(error) <=
+	ANGLE_TOLERANCE)
+	{
+		return 1;
+	}
+
+	return 0;
+}
+
+
+// ============================================================
+// 피벗 목표각 설정
+//
+// 현재 위치에 따라 다음 목표각 결정
+//
+// -90 → +90
+// +90 → -90
+// ============================================================
+
+void Pivot_NextTarget(void)
+{
+	if (pivot_target_angle < 0)
+	{
+		pivot_target_angle = 90.0;
+
+		printf(
+		"PIVOT TARGET: +90 DEG\n"
+		);
+	}
+	else
+	{
+		pivot_target_angle = -90.0;
+
+		printf(
+		"PIVOT TARGET: -90 DEG\n"
+		);
+	}
+}
+
+
+// ============================================================
+// PSD 피벗 탐색 제어
+// ============================================================
+
+void Pivot_Control(void)
+{
+	uint16_t pf0_raw;
+
+	float error;
+
+	if (!pivot_active)
+	{
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// PSD 실시간 확인
+	// --------------------------------------------------------
+
+	pf0_raw =
+	ADC_Read(0);
+
+	printf(
+	"PIVOT PSD: %u\n",
+	pf0_raw
+	);
+
+
+	// --------------------------------------------------------
+	// PSD <= 250
+	// 물체 발견
+	// --------------------------------------------------------
+
+	if (pf0_raw <=
+	PF0_PIVOT_THRESHOLD)
+	{
+		Motor_Stop();
+
+		pivot_active = 0;
+		pivot_finished = 1;
+
+		printf(
+		"PSD <= %d\n",
+		PF0_PIVOT_THRESHOLD
+		);
+
+		printf(
+		"OBJECT FOUND\n"
+		);
+
+		printf(
+		"PIVOT STOP\n"
+		);
+
+		// ----------------------------------------------------
+		// PSD 물체를 찾았으므로 최종 직진 시작
+		// ----------------------------------------------------
+
+		final_forward_active = 1;
+		final_finished = 0;
+
+		LED_SetStage(8);
+
+		printf(
+		"FINAL FORWARD START\n"
+		);
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 목표각 계산
+	// --------------------------------------------------------
+
+	error =
+	AngleError(
+	pivot_target_angle,
+	angle_z
+	);
+
+
+	// --------------------------------------------------------
+	// 목표각 도달
+	// --------------------------------------------------------
+
+	if (fabs(error) <=
+	ANGLE_TOLERANCE)
+	{
+		Motor_Stop();
+
+		printf(
+		"PIVOT ANGLE REACHED: %d DEG\n",
+		(int)angle_z
+		);
+
+		// 다음 목표
+		Pivot_NextTarget();
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 오른쪽 피벗
+	// --------------------------------------------------------
+
+	if (error > 0)
+	{
+		Motor_TurnRight(
+		TURN_SPEED
+		);
+	}
+
+	// --------------------------------------------------------
+	// 왼쪽 피벗
+	// --------------------------------------------------------
+
+	else
+	{
+		Motor_TurnLeft(
+		TURN_SPEED
+		);
+	}
+}
+
+
+// ============================================================
+// 최종 직진 제어
+//
+// PSD <= 150이면 정지
+// → 그리퍼 270도
+// → 종료
+// ============================================================
+
+void FinalForward_Control(void)
+{
+	uint16_t pf0_raw;
+
+	if (!final_forward_active)
+	{
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// PSD 측정
+	// --------------------------------------------------------
+
+	pf0_raw =
+	ADC_Read(0);
+
+	printf(
+	"FINAL PSD: %u\n",
+	pf0_raw
+	);
+
+
+	// --------------------------------------------------------
+	// PSD <= 150
+	// 최종 정지
+	// --------------------------------------------------------
+
+	if (pf0_raw <=
+	PF0_FINAL_THRESHOLD)
+	{
+		Motor_Stop();
+
+		final_forward_active = 0;
+		final_finished = 1;
+
+		printf(
+		"FINAL PSD <= %d\n",
+		PF0_FINAL_THRESHOLD
+		);
+
+		printf(
+		"FINAL POSITION REACHED\n"
+		);
+
+
+		// ----------------------------------------------------
+		// 그리퍼 270도 파지
+		// ----------------------------------------------------
+
+		GripperServo_270();
+
+
+		printf(
+		"ALL PROCESS COMPLETE\n"
+		);
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 계속 직진
+	// --------------------------------------------------------
+
+	Motor_Forward(
+	FORWARD_SPEED
+	);
 }
 
 
@@ -1472,7 +2011,11 @@ void LCD_DisplayStatus(void)
 {
 	LCD_Clear();
 
-	// 회전 중
+
+	// --------------------------------------------------------
+	// 초기 회전
+	// --------------------------------------------------------
+
 	if (rotation_active)
 	{
 		LCD_SetCursor(0, 0);
@@ -1498,49 +2041,99 @@ void LCD_DisplayStatus(void)
 		return;
 	}
 
-	// 직진 중
-	if (forward_active)
+
+	// --------------------------------------------------------
+	// 태그까지 직진
+	// --------------------------------------------------------
+
+	if (tag_forward_active)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("FORWARD");
+		LCD_Print("TAG DIST:");
+
+		LCD_PrintUInt(
+		id_distance
+		);
+
+		LCD_Print("px");
 
 		LCD_SetCursor(1, 0);
 
-		LCD_Print("PF0 RAW");
+		LCD_Print("TARGET:30px");
 
 		return;
 	}
 
+
+	// --------------------------------------------------------
+	// PSD 피벗 탐색
+	// --------------------------------------------------------
+
+	if (pivot_active)
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("PIVOT:");
+
+		LCD_PrintInt(
+		(int16_t)angle_z
+		);
+
+		LCD_Print("deg");
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("PSD<=");
+
+		LCD_PrintUInt(
+		PF0_PIVOT_THRESHOLD
+		);
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 최종 직진
+	// --------------------------------------------------------
+
+	if (final_forward_active)
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("FINAL FORWARD");
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("PSD<=150");
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
 	// 최종 완료
-	if (forward_finished)
+	// --------------------------------------------------------
+
+	if (final_finished)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("ALL COMPLETE");
+		LCD_Print("GRIPPER DONE");
 
 		LCD_SetCursor(1, 0);
 
-		LCD_Print("PF0 <= 250");
+		LCD_Print("270 DEG");
 
 		return;
 	}
 
-	// 회전 완료 직후
-	if (rotation_finished)
-	{
-		LCD_SetCursor(0, 0);
 
-		LCD_Print("ROTATION DONE");
-
-		LCD_SetCursor(1, 0);
-
-		LCD_Print("START FORWARD");
-
-		return;
-	}
-
+	// --------------------------------------------------------
 	// ID 검출
+	// --------------------------------------------------------
+
 	if (id_detected[5] &&
 	id_detected[6])
 	{
@@ -1556,7 +2149,13 @@ void LCD_DisplayStatus(void)
 
 		LCD_SetCursor(1, 0);
 
-		LCD_Print("TARGET READY");
+		LCD_Print("DIST:");
+
+		LCD_PrintUInt(
+		id_distance
+		);
+
+		LCD_Print("px");
 	}
 	else
 	{
@@ -1579,8 +2178,6 @@ int main(void)
 {
 	int16_t gyro_z_offset;
 
-	uint16_t pf0_raw;
-
 
 	// ========================================================
 	// LED 초기화
@@ -1598,7 +2195,6 @@ int main(void)
 
 	UART0_Init();
 
-	// printf를 UART0로 연결
 	stdout =
 	&UART0_OUTPUT;
 
@@ -1609,6 +2205,8 @@ int main(void)
 	LCD_Init();
 
 	Motor_Init();
+
+	GripperServo_Init();
 
 	ADC_Init();
 
@@ -1767,14 +2365,21 @@ int main(void)
 			rotation_active = 0;
 			rotation_finished = 0;
 
-			forward_active = 0;
-			forward_finished = 0;
+			tag_forward_active = 0;
+			tag_forward_finished = 0;
+
+			pivot_active = 0;
+			pivot_finished = 0;
+
+			final_forward_active = 0;
+			final_finished = 0;
+
+			gripper_finished = 0;
 
 			printf(
-			"IMU RESET -> 0 deg\n"
+			"FULL PROCESS RESET\n"
 			);
 
-			// 다시 ID 검색 단계
 			LED_SetStage(4);
 
 
@@ -1782,11 +2387,11 @@ int main(void)
 
 			LCD_SetCursor(0, 0);
 
-			LCD_Print("IMU RESET");
+			LCD_Print("SYSTEM RESET");
 
 			LCD_SetCursor(1, 0);
 
-			LCD_Print("Angle: 0 deg");
+			LCD_Print("Searching...");
 
 
 			while (!(PIND &
@@ -1807,14 +2412,19 @@ int main(void)
 
 
 		// ====================================================
-		// 아직 회전을 시작하지 않았다면
+		// 단계 1
+		// 아직 초기 회전을 시작하지 않았으면
 		// HuskyLens ID 검색
 		// ====================================================
 
 		if (!rotation_active &&
 		!rotation_finished &&
-		!forward_active &&
-		!forward_finished)
+		!tag_forward_active &&
+		!tag_forward_finished &&
+		!pivot_active &&
+		!pivot_finished &&
+		!final_forward_active &&
+		!final_finished)
 		{
 			HuskyLens_Update();
 
@@ -1825,11 +2435,9 @@ int main(void)
 			CalculateAngle();
 
 
-			// ID5 + ID6 모두 검출
 			if (id_detected[5] &&
 			id_detected[6])
 			{
-				// 단계 5
 				LED_SetStage(5);
 
 
@@ -1848,7 +2456,13 @@ int main(void)
 
 
 				printf(
-				"ID ANGLE: %d deg\n",
+				"ID DISTANCE: %d PIXEL\n",
+				id_distance
+				);
+
+
+				printf(
+				"ID ANGLE: %d DEG\n",
 				id_angle
 				);
 
@@ -1857,7 +2471,7 @@ int main(void)
 
 				LCD_SetCursor(0, 0);
 
-				LCD_Print("ID ANGLE:");
+				LCD_Print("ANGLE:");
 
 				LCD_PrintInt(
 				id_angle
@@ -1868,90 +2482,70 @@ int main(void)
 
 				LCD_SetCursor(1, 0);
 
-				LCD_Print("TARGET READY");
+				LCD_Print("DIST:");
+
+				LCD_PrintUInt(
+				id_distance
+				);
+
+				LCD_Print("px");
 
 
 				_delay_ms(500);
 
 
-				// 회전 시작
+				// 초기 회전 시작
 				StartRotation();
 			}
 		}
 
 
 		// ====================================================
-		// 회전 제어
+		// 초기 각도 회전
 		// ====================================================
 
 		Rotation_Control();
 
 
 		// ====================================================
-		// 회전 완료 후 직진
-		// PF0 = ADC0 RAW 값 확인
+		// 초기 회전 후
+		// 태그 거리 30 pixel까지 직진
 		// ====================================================
 
-		if (forward_active)
-		{
-			pf0_raw =
-			ADC_Read(0);
-
-
-			printf(
-			"PF0 RAW: %u\n",
-			pf0_raw
-			);
-
-
-			// RAW 값 250 이하이면 정지
-			if (pf0_raw <=
-			PF0_STOP_THRESHOLD)
-			{
-				Motor_Stop();
-
-				forward_active = 0;
-				forward_finished = 1;
-
-				// 단계 8
-				LED_SetStage(8);
-
-
-				printf(
-				"PF0 RAW <= %d\n",
-				PF0_STOP_THRESHOLD
-				);
-
-				printf(
-				"FORWARD COMPLETE\n"
-				);
-			}
-			else
-			{
-				// RAW 값이 250보다 크면 계속 직진
-				Motor_Forward(
-				FORWARD_SPEED
-				);
-			}
-		}
+		TagForward_Control();
 
 
 		// ====================================================
-		// 최종 완료 처리
+		// 태그 거리 30 pixel 도달 후
+		// 좌우 90도 피벗하면서 PSD 탐색
 		// ====================================================
 
-		if (forward_finished == 1)
+		Pivot_Control();
+
+
+		// ====================================================
+		// PSD 250 검출 후
+		// 최종 직진
+		// ====================================================
+
+		FinalForward_Control();
+
+
+		// ====================================================
+		// 최종 완료
+		// ====================================================
+
+		if (final_finished)
 		{
 			LED_SetStage(8);
 
 			LCD_DisplayStatus();
 
-			printf(
-			"ALL PROCESS COMPLETE\n"
-			);
+			// 이미 그리퍼까지 완료했으면
+			// 더 이상 모터 명령을 보내지 않음
+			Motor_Stop();
 
-			// 한 번만 출력
-			forward_finished = 2;
+			_delay_ms(100);
 		}
 		else
 		{
