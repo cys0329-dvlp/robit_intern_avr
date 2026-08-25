@@ -113,17 +113,6 @@
 
 // ============================================================
 // Delay 기반 PSD 탐색 설정
-//
-// 필요하면 여기 시간만 조절하면 됨
-//
-// LEFT_TURN_TIME_MS
-// → 왼쪽으로 회전하는 시간
-//
-// CENTER_TIME_MS
-// → 가운데 방향으로 복귀하는 시간
-//
-// RIGHT_TURN_TIME_MS
-// → 오른쪽으로 회전하는 시간
 // ============================================================
 
 #define LEFT_TURN_TIME_MS    500
@@ -143,17 +132,14 @@
 // 4. 나머지 18개 평균
 // 5. 이전값 7/8 + 현재값 1/8
 //
-// 피벗 탐색:
-// PSD 값이 320 ~ 330일 때만 정지
-//
-// 최종 직진:
-// PSD 값이 250 이하이면 정지
+// PSD 330 ~ 420이면 물체 발견
+// → 0.5초 직진
+// → 정지
+// → 그리퍼 180도
 // ============================================================
 
 #define PF0_PIVOT_MIN        330
 #define PF0_PIVOT_MAX        420
-
-#define PF0_FINAL_THRESHOLD  250
 
 #define TAG_DISTANCE_STOP    45
 
@@ -225,9 +211,7 @@ uint8_t tag_forward_finished = 0;
 
 
 // ============================================================
-// PSD Delay 탐색 상태
-//
-// IMU 사용 안 함
+// PSD 탐색 상태
 //
 // 0 = 왼쪽 탐색
 // 1 = 가운데 복귀
@@ -243,6 +227,9 @@ uint8_t pivot_search_state = 0;
 
 // ============================================================
 // 최종 직진 상태
+//
+// 기존 PSD <= 250 방식은 제거
+// PSD 330~420 감지 후 0.5초 직진하고 종료
 // ============================================================
 
 uint8_t final_forward_active = 0;
@@ -433,8 +420,7 @@ uint16_t ADC_Read(uint8_t channel)
 	ADCSRA |=
 	(1 << ADSC);
 
-	while (ADCSRA &
-	(1 << ADSC));
+	while (ADCSRA & (1 << ADSC));
 
 	return ADC;
 }
@@ -1536,21 +1522,6 @@ void Motor_RotateRight(uint8_t speed)
 	OCR1B = speed;
 }
 
-
-// ============================================================
-// 그리퍼 서보 초기화
-// ============================================================
-
-void GripperServo_Init(void)
-{
-	DDRB |=
-	(1 << GRIPPER_SERVO_PIN);
-
-	PORTB &=
-	~(1 << GRIPPER_SERVO_PIN);
-}
-
-
 // ============================================================
 // 그리퍼 서보 각도 제어
 //
@@ -1598,9 +1569,66 @@ void GripperServo_SetAngle(uint16_t angle)
 	}
 }
 
+// ============================================================
+// 그리퍼 서보 초기화
+// ============================================================
+
+void GripperServo_Init(void)
+{
+	DDRB |=
+	(1 << GRIPPER_SERVO_PIN);
+
+	PORTB &=
+	~(1 << GRIPPER_SERVO_PIN);
+
+	_delay_ms(300);
+
+	for (uint8_t i = 0;
+	i < 50;
+	i++)
+	{
+		GripperServo_SetAngle(0);
+	}
+
+	printf(
+	"GRIPPER INITIAL POSITION: 0 DEG\n"
+	);
+
+	_delay_ms(300);
+}
+
+
+
 
 // ============================================================
-// 그리퍼 270도 파지
+// 그리퍼 180도
+// ============================================================
+
+void GripperServo_180(void)
+{
+	uint8_t i;
+
+	printf(
+	"GRIPPER 180 DEG START\n"
+	);
+
+	for (i = 0;
+	i < 50;
+	i++)
+	{
+		GripperServo_SetAngle(180);
+	}
+
+	gripper_finished = 1;
+
+	printf(
+	"GRIPPER 180 DEG COMPLETE\n"
+	);
+}
+
+
+// ============================================================
+// 기존 그리퍼 270도
 // ============================================================
 
 void GripperServo_270(void)
@@ -1707,8 +1735,6 @@ float current
 
 // ============================================================
 // 초기 회전 시작
-//
-// 여기서는 기존처럼 IMU 사용
 // ============================================================
 
 void StartRotation(void)
@@ -1751,8 +1777,6 @@ void StartRotation(void)
 
 // ============================================================
 // 초기 회전 제어
-//
-// 기존 IMU 방식 유지
 // ============================================================
 
 void Rotation_Control(void)
@@ -1875,9 +1899,7 @@ void TagForward_Control(void)
 
 
 		// ====================================================
-		// Delay 기반 좌우 PSD 탐색 시작
-		//
-		// IMU는 여기부터 사용하지 않음
+		// PSD 좌우 탐색 시작
 		// ====================================================
 
 		pivot_active = 1;
@@ -1894,7 +1916,8 @@ void TagForward_Control(void)
 		);
 
 		printf(
-		"LEFT 1 SEC -> CENTER 1 SEC -> RIGHT 1 SEC -> CENTER 1 SEC\n"
+		"LEFT 0.5 SEC -> CENTER 0.5 SEC -> "
+		"RIGHT 0.5 SEC -> CENTER 0.5 SEC\n"
 		);
 
 		return;
@@ -1913,13 +1936,18 @@ void TagForward_Control(void)
 //
 // 순서:
 //
-// 0: 왼쪽 1초
-// 1: 오른쪽으로 1초 복귀
-// 2: 오른쪽 1초
-// 3: 왼쪽으로 1초 복귀
+// 0: 왼쪽 0.5초
+// 1: 가운데 복귀 0.5초
+// 2: 오른쪽 0.5초
+// 3: 가운데 복귀 0.5초
 //
-// 위 과정을 반복하면서
-// PSD 320~330 확인
+// 반복하면서 PSD 330~420 확인
+//
+// PSD 330~420 발견:
+// → 0.5초 직진
+// → 정지
+// → PB7 그리퍼 180도
+// → 종료
 // ============================================================
 
 void Pivot_Control(void)
@@ -1946,8 +1974,7 @@ void Pivot_Control(void)
 
 
 	// --------------------------------------------------------
-	// PSD 320 ~ 330
-	// 발견하면 즉시 정지
+	// PSD 330 ~ 420 발견
 	// --------------------------------------------------------
 
 	if (pf0_raw >=
@@ -1955,11 +1982,6 @@ void Pivot_Control(void)
 	pf0_raw <=
 	PF0_PIVOT_MAX)
 	{
-		Motor_Stop();
-
-		pivot_active = 0;
-		pivot_finished = 1;
-
 		printf(
 		"PSD IN RANGE: %d ~ %d\n",
 		PF0_PIVOT_MIN,
@@ -1975,21 +1997,48 @@ void Pivot_Control(void)
 		"OBJECT FOUND\n"
 		);
 
+
+		// ====================================================
+		// PSD 검출 후 0.5초 직진
+		// ====================================================
+
 		printf(
-		"PIVOT STOP\n"
+		"FORWARD 0.5 SEC START\n"
+		);
+
+		Motor_Forward(
+		FORWARD_SPEED
+		);
+
+		_delay_ms(500);
+
+		Motor_Stop();
+
+		printf(
+		"FORWARD 0.5 SEC COMPLETE\n"
 		);
 
 
-		// 최종 직진 전 필터 초기화
-		PSD_ResetFilter();
+		// ====================================================
+		// 그리퍼 180도
+		// ====================================================
 
-		final_forward_active = 1;
-		final_finished = 0;
+		pivot_active = 0;
+		pivot_finished = 1;
+
+		final_forward_active = 0;
+		final_finished = 1;
 
 		LED_SetStage(8);
 
 		printf(
-		"FINAL FORWARD START\n"
+		"GRIPPER 180 DEG START\n"
+		);
+
+		GripperServo_180();
+
+		printf(
+		"ALL PROCESS COMPLETE\n"
 		);
 
 		return;
@@ -1999,7 +2048,7 @@ void Pivot_Control(void)
 	// --------------------------------------------------------
 	// 상태 0
 	//
-	// 왼쪽 1초 회전
+	// 왼쪽 0.5초 회전
 	// --------------------------------------------------------
 
 	if (pivot_search_state == 0)
@@ -2029,7 +2078,7 @@ void Pivot_Control(void)
 	// --------------------------------------------------------
 	// 상태 1
 	//
-	// 오른쪽으로 1초
+	// 오른쪽으로 0.5초
 	// 가운데 방향 복귀
 	// --------------------------------------------------------
 
@@ -2060,7 +2109,7 @@ void Pivot_Control(void)
 	// --------------------------------------------------------
 	// 상태 2
 	//
-	// 오른쪽 1초 회전
+	// 오른쪽 0.5초 회전
 	// --------------------------------------------------------
 
 	if (pivot_search_state == 2)
@@ -2090,7 +2139,7 @@ void Pivot_Control(void)
 	// --------------------------------------------------------
 	// 상태 3
 	//
-	// 왼쪽으로 1초
+	// 왼쪽으로 0.5초
 	// 가운데 방향 복귀
 	// --------------------------------------------------------
 
@@ -2122,62 +2171,12 @@ void Pivot_Control(void)
 // ============================================================
 // 최종 직진 제어
 //
-// PSD <= 250이면 정지
-// → 그리퍼 270도
-// → 종료
+// 현재 사용하지 않음
 // ============================================================
 
 void FinalForward_Control(void)
 {
-	uint16_t pf0_raw;
-
-	if (!final_forward_active)
-	{
-		return;
-	}
-
-	pf0_raw =
-	PSD_Read_Stable(0);
-
-	printf(
-	"FINAL PSD STABLE: %u\n",
-	pf0_raw
-	);
-
-	if (pf0_raw <=
-	PF0_FINAL_THRESHOLD)
-	{
-		Motor_Stop();
-
-		final_forward_active = 0;
-		final_finished = 1;
-
-		printf(
-		"FINAL PSD <= %d\n",
-		PF0_FINAL_THRESHOLD
-		);
-
-		printf(
-		"CURRENT PSD: %u\n",
-		pf0_raw
-		);
-
-		printf(
-		"FINAL POSITION REACHED\n"
-		);
-
-		GripperServo_270();
-
-		printf(
-		"ALL PROCESS COMPLETE\n"
-		);
-
-		return;
-	}
-
-	Motor_Forward(
-	FORWARD_SPEED
-	);
+	return;
 }
 
 
@@ -2238,7 +2237,7 @@ void LCD_DisplayStatus(void)
 	}
 
 
-	// Delay 기반 PSD 탐색
+	// PSD 탐색
 	if (pivot_active)
 	{
 		LCD_SetCursor(0, 0);
@@ -2272,25 +2271,6 @@ void LCD_DisplayStatus(void)
 	}
 
 
-	// 최종 직진
-	if (final_forward_active)
-	{
-		LCD_SetCursor(0, 0);
-
-		LCD_Print("FINAL PSD:");
-
-		LCD_PrintUInt(
-		psd_stable_value
-		);
-
-		LCD_SetCursor(1, 0);
-
-		LCD_Print("STOP<=250");
-
-		return;
-	}
-
-
 	// 최종 완료
 	if (final_finished)
 	{
@@ -2300,7 +2280,7 @@ void LCD_DisplayStatus(void)
 
 		LCD_SetCursor(1, 0);
 
-		LCD_Print("270 DEG");
+		LCD_Print("180 DEG");
 
 		return;
 	}
@@ -2587,7 +2567,7 @@ int main(void)
 		// IMU 각도 업데이트
 		//
 		// 초기 회전에만 사용
-		// PSD 탐색은 IMU 사용 안 함
+		// PSD 탐색에서는 사용하지 않음
 		// ====================================================
 
 		if (rotation_active)
@@ -2700,22 +2680,20 @@ int main(void)
 
 
 		// ====================================================
-		// ID 거리 45 pixel 도달 후
+		// PSD 좌우 탐색
 		//
-		// Delay 기반 좌우 탐색
-		//
-		// 왼쪽 1초
-		// → 가운데 1초
-		// → 오른쪽 1초
-		// → 가운데 1초
-		// → 반복
+		// PSD 330~420 발견 시
+		// → 0.5초 직진
+		// → 정지
+		// → 그리퍼 180도
 		// ====================================================
 
 		Pivot_Control();
 
 
 		// ====================================================
-		// PSD 발견 후 최종 직진
+		// 최종 직진 제어
+		// 현재 사용하지 않음
 		// ====================================================
 
 		FinalForward_Control();
