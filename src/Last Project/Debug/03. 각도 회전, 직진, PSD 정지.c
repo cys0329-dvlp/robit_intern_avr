@@ -1830,7 +1830,7 @@ void Pivot_Control(void)
 	// 물체 발견
 	// --------------------------------------------------------
 
-	if (pf0_raw <=
+	if (pf0_raw >=
 	PF0_PIVOT_THRESHOLD)
 	{
 		Motor_Stop();
