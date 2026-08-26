@@ -171,7 +171,20 @@ uint16_t id_y[8];
 
 
 // ============================================================
-// ID5 → ID6 거리 / 각도
+// 현재 목표 태그 ID
+//
+// ID5-ID6 단계에서는 6
+// ID5-ID6 완료 후 ID5-ID7 단계에서는 7 로 전환
+//
+// ID5-ID6 / ID5-ID7 모두
+// 아래의 동일한 회전/직진 로직을 그대로 재사용한다.
+// ============================================================
+
+uint8_t current_target_id = 6;
+
+
+// ============================================================
+// ID5 → 목표(ID6 또는 ID7) 거리 / 각도
 // ============================================================
 
 uint16_t id_distance = 0;
@@ -180,18 +193,7 @@ int16_t id_angle = 0;
 
 
 // ============================================================
-// ID5 → ID7 거리 / 각도
-//
-// ID5-ID6 도달 이후 재계산해서 사용
-// ============================================================
-
-uint16_t id57_distance = 0;
-
-int16_t id57_angle = 0;
-
-
-// ============================================================
-// 초기 회전 상태 (ID5 → ID6 기준)
+// 회전 상태 (ID5 → 현재 목표 기준)
 // ============================================================
 
 uint8_t rotation_active = 0;
@@ -201,36 +203,11 @@ float target_angle = 0.0;
 
 
 // ============================================================
-// 태그까지 직진 상태 (ID5 → ID6 기준)
+// 태그까지 직진 상태 (ID5 → 현재 목표 기준)
 // ============================================================
 
 uint8_t tag_forward_active = 0;
 uint8_t tag_forward_finished = 0;
-
-
-// ============================================================
-// ID5-ID6 도달 후 ID7 재탐색 상태
-// ============================================================
-
-uint8_t searching_id7 = 0;
-
-
-// ============================================================
-// 두번째 회전 상태 (ID5 → ID7 기준)
-// ============================================================
-
-uint8_t second_rotation_active = 0;
-uint8_t second_rotation_finished = 0;
-
-float target_angle2 = 0.0;
-
-
-// ============================================================
-// 두번째 직진 상태 (ID5 → ID7 기준)
-// ============================================================
-
-uint8_t second_forward_active = 0;
-uint8_t second_forward_finished = 0;
 
 
 // ============================================================
@@ -1014,24 +991,24 @@ uint8_t id_b
 
 
 // ============================================================
-// ID5 → ID6 거리 (기존 호환용 래퍼)
+// ID5 → 현재 목표(current_target_id) 거리
 // ============================================================
 
 uint16_t CalculateDistance(void)
 {
 	return
-	CalculateDistanceIDs(5, 6);
+	CalculateDistanceIDs(5, current_target_id);
 }
 
 
 // ============================================================
-// ID5 → ID6 각도 (기존 호환용 래퍼)
+// ID5 → 현재 목표(current_target_id) 각도
 // ============================================================
 
 int16_t CalculateAngle(void)
 {
 	return
-	CalculateAngleIDs(5, 6);
+	CalculateAngleIDs(5, current_target_id);
 }
 
 
@@ -1582,12 +1559,29 @@ float current
 
 
 // ============================================================
-// 초기 회전 시작 (ID5 → ID6)
+// 회전 시작 (ID5 → 현재 목표)
+//
+// ID5-ID6 단계, ID5-ID7 단계 모두
+// 이 함수를 그대로 재사용한다.
 // ============================================================
 
 void StartRotation(void)
 {
-	angle_z = 0.0;
+	// --------------------------------------------------------
+	// 주의: 여기서 angle_z 를 0으로 리셋하지 않는다.
+	//
+	// HuskyLens 카메라가 외부(천장) 고정이라 id_angle 은
+	// "로봇 기준 상대각"이 아니라 "카메라 화면 기준 절대 방위각"이다.
+	//
+	// angle_z 는 자이로 캘리브레이션 직후(main 함수) 또는
+	// 리셋 스위치를 눌렀을 때만 0으로 잡고,
+	// 그 이후로는 여러 구간(ID6 -> ID7)에 걸쳐
+	// 계속 누적된 값을 그대로 사용해야
+	// 카메라의 절대 방위각 기준과 일치한다.
+	//
+	// 여기서 다시 0으로 리셋하면, 이전 구간에서 실제로 회전한
+	// 각도만큼 기준이 어긋나서 다음 구간이 과회전하게 된다.
+	// --------------------------------------------------------
 
 	target_angle =
 	(float)id_angle;
@@ -1598,12 +1592,11 @@ void StartRotation(void)
 	tag_forward_active = 0;
 	tag_forward_finished = 0;
 
-	process_finished = 0;
-
 	LED_SetStage(6);
 
 	printf(
-	"INITIAL ROTATION START\n"
+	"ROTATION START (ID5->ID%d)\n",
+	current_target_id
 	);
 
 	printf(
@@ -1614,7 +1607,7 @@ void StartRotation(void)
 
 
 // ============================================================
-// 초기 회전 제어 (ID5 → ID6)
+// 회전 제어 (ID5 → 현재 목표)
 // ============================================================
 
 void Rotation_Control(void)
@@ -1646,7 +1639,8 @@ void Rotation_Control(void)
 		LED_SetStage(7);
 
 		printf(
-		"INITIAL ROTATION COMPLETE\n"
+		"ROTATION COMPLETE (ID5->ID%d)\n",
+		current_target_id
 		);
 
 		printf(
@@ -1684,15 +1678,13 @@ void Rotation_Control(void)
 
 
 // ============================================================
-// 태그 거리 도달 확인 (ID5-ID6)
-//
-// ID5-ID6 거리 45 pixel 이하
+// 태그 거리 도달 확인 (ID5-현재 목표)
 // ============================================================
 
 uint8_t TagDistanceReached(void)
 {
 	if (!id_detected[5] ||
-	!id_detected[6])
+	!id_detected[current_target_id])
 	{
 		return 0;
 	}
@@ -1708,7 +1700,7 @@ uint8_t TagDistanceReached(void)
 
 
 // ============================================================
-// 태그 거리 직진 제어 (ID5-ID6)
+// 태그 거리 직진 제어 (ID5-현재 목표)
 //
 // 회전 완료 시점의 target_angle을
 // 그대로 "직진 유지 목표각"으로 사용
@@ -1717,10 +1709,16 @@ uint8_t TagDistanceReached(void)
 // 현재각과 target_angle의 오차만큼
 // 좌우 모터 속도를 보정 (라인트레이싱 방식)
 //
-// 여기서 45 pixel 이하가 되면
-// 모터를 정지하고,
-// 곧바로 ID5-ID7 재탐색 단계로 넘어감
-// (process_finished는 아직 세우지 않음)
+// 45 pixel 이하가 되면:
+//   - 현재 목표가 ID6 이었다면
+//     -> 각도(angle_z) 초기화 + 모든 상태를
+//        맨 처음(ID6 탐색 시작 전)과 동일하게 리셋하고
+//        current_target_id 를 7로 바꿔서
+//        똑같은 로직(메인 루프의 초기 탐색 -> StartRotation
+//        -> Rotation_Control -> TagForward_Control)을
+//        그대로 재사용해 ID7을 향해 다시 진행한다.
+//   - 현재 목표가 ID7 이었다면
+//     -> 전체 과정 종료 (process_finished = 1)
 // ============================================================
 
 void TagForward_Control(void)
@@ -1738,7 +1736,7 @@ void TagForward_Control(void)
 	CalculateDistance();
 
 	// --------------------------------------------------------
-	// 45 pixel 이하 (ID5-ID6)
+	// 45 pixel 이하 (ID5-현재 목표)
 	// --------------------------------------------------------
 
 	if (TagDistanceReached())
@@ -1748,19 +1746,19 @@ void TagForward_Control(void)
 		tag_forward_active = 0;
 		tag_forward_finished = 1;
 
-		LED_SetStage(8);
-
 		printf(
 		"================================\n"
 		);
 
 		printf(
-		"ID5-ID6 DISTANCE <= %d PIXEL\n",
+		"ID5-ID%d DISTANCE <= %d PIXEL\n",
+		current_target_id,
 		TAG_DISTANCE_STOP
 		);
 
 		printf(
-		"ID5-ID6 DISTANCE: %d PIXEL\n",
+		"ID5-ID%d DISTANCE: %d PIXEL\n",
+		current_target_id,
 		id_distance
 		);
 
@@ -1768,20 +1766,58 @@ void TagForward_Control(void)
 		"MOTOR STOP\n"
 		);
 
-		printf(
-		"STAGE 1 COMPLETE\n"
-		);
+		if (current_target_id == 6)
+		{
+			// ----------------------------------------------
+			// ID5-ID6 완료
+			// -> 각도 초기화 + 맨 처음 상태로 리셋
+			// -> ID7 을 목표로 동일 로직 재시작
+			// ----------------------------------------------
 
-		printf(
-		"SEARCHING ID5 / ID7\n"
-		);
+			printf(
+			"STAGE 1 COMPLETE\n"
+			);
 
-		printf(
-		"================================\n"
-		);
+			printf(
+			"RESTART FROM BEGINNING FOR ID7\n"
+			);
 
-		// ID7 재탐색 시작 (메인 루프에서 계속 시도)
-		searching_id7 = 1;
+			printf(
+			"================================\n"
+			);
+
+			current_target_id = 7;
+
+			// angle_z 는 절대 방위각 기준을 유지해야 하므로
+			// 여기서 리셋하지 않는다 (위 StartRotation 주석 참고).
+
+			rotation_active = 0;
+			rotation_finished = 0;
+
+			tag_forward_active = 0;
+			tag_forward_finished = 0;
+
+			LED_SetStage(4);
+		}
+		else
+		{
+			// ----------------------------------------------
+			// ID5-ID7 완료
+			// -> 전체 과정 종료
+			// ----------------------------------------------
+
+			process_finished = 1;
+
+			STAGE_LED_PORT = 0xFF;
+
+			printf(
+			"FULL PROCESS COMPLETE\n"
+			);
+
+			printf(
+			"================================\n"
+			);
+		}
 
 		return;
 	}
@@ -1812,226 +1848,6 @@ void TagForward_Control(void)
 
 
 // ============================================================
-// 두번째 회전 시작 (ID5 → ID7)
-//
-// ID5-ID6 도달 후 다시 계산한 각도만큼
-// 처음 회전했던 것과 동일한 방식으로 회전
-// ============================================================
-
-void StartRotation2(void)
-{
-	angle_z = 0.0;
-
-	target_angle2 =
-	(float)id57_angle;
-
-	second_rotation_active = 1;
-	second_rotation_finished = 0;
-
-	second_forward_active = 0;
-	second_forward_finished = 0;
-
-	LED_SetStage(6);
-
-	printf(
-	"SECOND ROTATION START (ID5->ID7)\n"
-	);
-
-	printf(
-	"TARGET ANGLE: %d deg\n",
-	id57_angle
-	);
-}
-
-
-// ============================================================
-// 두번째 회전 제어 (ID5 → ID7)
-// ============================================================
-
-void Rotation_Control2(void)
-{
-	float error;
-
-	if (!second_rotation_active)
-	{
-		return;
-	}
-
-	error =
-	AngleError(
-	target_angle2,
-	angle_z
-	);
-
-	if (fabs(error) <=
-	ANGLE_TOLERANCE)
-	{
-		Motor_Stop();
-
-		second_rotation_active = 0;
-		second_rotation_finished = 1;
-
-		second_forward_active = 1;
-		second_forward_finished = 0;
-
-		LED_SetStage(7);
-
-		printf(
-		"SECOND ROTATION COMPLETE\n"
-		);
-
-		printf(
-		"IMU ANGLE: %d deg\n",
-		(int)angle_z
-		);
-
-		printf(
-		"TARGET ANGLE (HOLD): %d deg\n",
-		(int)target_angle2
-		);
-
-		printf(
-		"ID5-ID7 FORWARD START\n"
-		);
-
-		_delay_ms(300);
-
-		return;
-	}
-
-	if (error > 0)
-	{
-		Motor_TurnRight(
-		TURN_SPEED
-		);
-	}
-	else
-	{
-		Motor_TurnLeft(
-		TURN_SPEED
-		);
-	}
-}
-
-
-// ============================================================
-// 태그 거리 도달 확인 (ID5-ID7)
-//
-// ID5-ID7 거리 45 pixel 이하
-// ============================================================
-
-uint8_t TagDistanceReached2(void)
-{
-	if (!id_detected[5] ||
-	!id_detected[7])
-	{
-		return 0;
-	}
-
-	if (id57_distance <=
-	TAG_DISTANCE_STOP)
-	{
-		return 1;
-	}
-
-	return 0;
-}
-
-
-// ============================================================
-// 태그 거리 직진 제어 (ID5-ID7)
-//
-// target_angle2를 유지하며 IMU 보정 직진
-// (첫번째 구간과 완전히 동일한 방식)
-//
-// 여기서 45 pixel 이하가 되면
-// 모터를 정지하고 전체 과정을 종료
-// ============================================================
-
-void TagForward_Control2(void)
-{
-	float error;
-
-	if (!second_forward_active)
-	{
-		return;
-	}
-
-	HuskyLens_Update();
-
-	id57_distance =
-	CalculateDistanceIDs(5, 7);
-
-	// --------------------------------------------------------
-	// 45 pixel 이하 (ID5-ID7)
-	// --------------------------------------------------------
-
-	if (TagDistanceReached2())
-	{
-		Motor_Stop();
-
-		second_forward_active = 0;
-		second_forward_finished = 1;
-
-		process_finished = 1;
-
-		STAGE_LED_PORT = 0xFF;
-
-		printf(
-		"================================\n"
-		);
-
-		printf(
-		"ID5-ID7 DISTANCE <= %d PIXEL\n",
-		TAG_DISTANCE_STOP
-		);
-
-		printf(
-		"ID5-ID7 DISTANCE: %d PIXEL\n",
-		id57_distance
-		);
-
-		printf(
-		"MOTOR STOP\n"
-		);
-
-		printf(
-		"FULL PROCESS COMPLETE\n"
-		);
-
-		printf(
-		"================================\n"
-		);
-
-		return;
-	}
-
-	// --------------------------------------------------------
-	// 아직 45 pixel보다 큼
-	//
-	// target_angle2 유지하며 직진 (IMU 보정)
-	// --------------------------------------------------------
-
-	error =
-	AngleError(
-	target_angle2,
-	angle_z
-	);
-
-	printf(
-	"STRAIGHT2 ERR: %d deg  IMU: %d deg\n",
-	(int)error,
-	(int)angle_z
-	);
-
-	Motor_Forward_Straight(
-	FORWARD_SPEED,
-	error
-	);
-}
-
-
-// ============================================================
 // LCD 상태 표시
 // ============================================================
 
@@ -2040,14 +1856,18 @@ void LCD_DisplayStatus(void)
 	LCD_Clear();
 
 	// --------------------------------------------------------
-	// 초기 회전 (ID5-ID6)
+	// 회전 중 (ID5-현재 목표)
 	// --------------------------------------------------------
 
 	if (rotation_active)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("TARGET:");
+		LCD_Print("TGT");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
 
 		LCD_PrintInt(
 		(int16_t)target_angle
@@ -2070,14 +1890,18 @@ void LCD_DisplayStatus(void)
 
 
 	// --------------------------------------------------------
-	// 태그까지 직진 (ID5-ID6, IMU 유지)
+	// 태그까지 직진 중 (ID5-현재 목표, IMU 유지)
 	// --------------------------------------------------------
 
 	if (tag_forward_active)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("DIST:");
+		LCD_Print("DIST");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
 
 		LCD_PrintUInt(
 		id_distance
@@ -2097,90 +1921,6 @@ void LCD_DisplayStatus(void)
 
 		LCD_PrintInt(
 		(int16_t)target_angle
-		);
-
-		LCD_Print("deg");
-
-		return;
-	}
-
-
-	// --------------------------------------------------------
-	// ID5-ID6 도달 후 ID7 재탐색 중
-	// --------------------------------------------------------
-
-	if (searching_id7)
-	{
-		LCD_SetCursor(0, 0);
-
-		LCD_Print("ID5/ID7");
-
-		LCD_SetCursor(1, 0);
-
-		LCD_Print("Searching...");
-
-		return;
-	}
-
-
-	// --------------------------------------------------------
-	// 두번째 회전 (ID5-ID7)
-	// --------------------------------------------------------
-
-	if (second_rotation_active)
-	{
-		LCD_SetCursor(0, 0);
-
-		LCD_Print("TARGET2:");
-
-		LCD_PrintInt(
-		(int16_t)target_angle2
-		);
-
-		LCD_Print("deg");
-
-		LCD_SetCursor(1, 0);
-
-		LCD_Print("IMU:");
-
-		LCD_PrintInt(
-		(int16_t)angle_z
-		);
-
-		LCD_Print("deg");
-
-		return;
-	}
-
-
-	// --------------------------------------------------------
-	// 두번째 직진 (ID5-ID7, IMU 유지)
-	// --------------------------------------------------------
-
-	if (second_forward_active)
-	{
-		LCD_SetCursor(0, 0);
-
-		LCD_Print("DIST7:");
-
-		LCD_PrintUInt(
-		id57_distance
-		);
-
-		LCD_Print("px");
-
-		LCD_SetCursor(1, 0);
-
-		LCD_Print("IMU:");
-
-		LCD_PrintInt(
-		(int16_t)angle_z
-		);
-
-		LCD_Print("/");
-
-		LCD_PrintInt(
-		(int16_t)target_angle2
 		);
 
 		LCD_Print("deg");
@@ -2204,7 +1944,7 @@ void LCD_DisplayStatus(void)
 		LCD_Print("DIST7:");
 
 		LCD_PrintUInt(
-		id57_distance
+		id_distance
 		);
 
 		LCD_Print("px");
@@ -2214,15 +1954,19 @@ void LCD_DisplayStatus(void)
 
 
 	// --------------------------------------------------------
-	// 최초 ID5/ID6 검출 대기
+	// 현재 목표(ID6 또는 ID7) 탐색 대기
 	// --------------------------------------------------------
 
 	if (id_detected[5] &&
-	id_detected[6])
+	id_detected[current_target_id])
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("ID ANGLE:");
+		LCD_Print("ANGLE");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
 
 		LCD_PrintInt(
 		id_angle
@@ -2244,7 +1988,9 @@ void LCD_DisplayStatus(void)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("ID5/ID6");
+		LCD_Print("ID5/ID");
+
+		LCD_PrintUInt(current_target_id);
 
 		LCD_SetCursor(1, 0);
 
@@ -2399,8 +2145,10 @@ int main(void)
 
 	// ========================================================
 	// 단계 4
-	// HuskyLens ID5 / ID6 탐색
+	// HuskyLens ID5 / 현재 목표(ID6) 탐색
 	// ========================================================
+
+	current_target_id = 6;
 
 	LED_SetStage(4);
 
@@ -2432,23 +2180,22 @@ int main(void)
 
 		if (ResetSwitch_Pressed())
 		{
+			// 전체 리셋 시점에는 로봇을 캘리브레이션 때와
+			// 동일한 물리적 방향으로 다시 맞춰놓은 뒤
+			// 리셋 스위치를 누른다고 가정하고 angle_z를 0으로 잡는다.
+			// (카메라가 절대 방위각 기준이므로, 방향을 안 맞추고
+			//  리셋하면 다시 기준이 어긋난다.)
 			angle_z = 0.0;
 
 			Motor_Stop();
+
+			current_target_id = 6;
 
 			rotation_active = 0;
 			rotation_finished = 0;
 
 			tag_forward_active = 0;
 			tag_forward_finished = 0;
-
-			searching_id7 = 0;
-
-			second_rotation_active = 0;
-			second_rotation_finished = 0;
-
-			second_forward_active = 0;
-			second_forward_finished = 0;
 
 			process_finished = 0;
 
@@ -2500,13 +2247,11 @@ int main(void)
 		// ====================================================
 		// IMU 각도 업데이트
 		//
-		// 두 구간의 회전 중 + 직진 중(직진 유지 보정용) 모두 사용
+		// 회전 중 + 직진 중(직진 유지 보정용) 모두 사용
 		// ====================================================
 
 		if (rotation_active ||
-		tag_forward_active ||
-		second_rotation_active ||
-		second_forward_active)
+		tag_forward_active)
 		{
 			MPU6050_UpdateAngle(
 			gyro_z_offset
@@ -2515,8 +2260,11 @@ int main(void)
 
 
 		// ====================================================
-		// 초기 회전 전
-		// HuskyLens ID5 / ID6 탐색
+		// 회전 전
+		// HuskyLens ID5 / 현재 목표(current_target_id) 탐색
+		//
+		// ID5-ID6 단계, ID5-ID7 단계 모두
+		// 완전히 동일한 이 블록을 그대로 재사용한다.
 		// ====================================================
 
 		if (!rotation_active &&
@@ -2534,7 +2282,7 @@ int main(void)
 
 
 			if (id_detected[5] &&
-			id_detected[6])
+			id_detected[current_target_id])
 			{
 				LED_SetStage(5);
 
@@ -2545,9 +2293,10 @@ int main(void)
 				);
 
 				printf(
-				"ID6: X=%d Y=%d\n",
-				id_x[6],
-				id_y[6]
+				"ID%d: X=%d Y=%d\n",
+				current_target_id,
+				id_x[current_target_id],
+				id_y[current_target_id]
 				);
 
 				printf(
@@ -2588,14 +2337,14 @@ int main(void)
 				_delay_ms(500);
 
 
-				// 초기 회전 시작
+				// 회전 시작 (ID5-ID6 / ID5-ID7 공용)
 				StartRotation();
 			}
 		}
 
 
 		// ====================================================
-		// 초기 각도 회전 (ID5-ID6)
+		// 각도 회전 (ID5 → 현재 목표, ID6/ID7 공용)
 		// ====================================================
 
 		Rotation_Control();
@@ -2603,107 +2352,16 @@ int main(void)
 
 		// ====================================================
 		// 회전 완료 후
-		// ID 거리 45 pixel까지 직진 (ID5-ID6)
+		// ID 거리 45 pixel까지 직진 (ID5 → 현재 목표, ID6/ID7 공용)
 		//
 		// target_angle 유지하며 IMU 보정 직진
+		//
+		// 여기서 ID6 완료 시 current_target_id 가 7로 바뀌고
+		// 상태가 전부 리셋되므로, 다음 루프부터는
+		// 위의 "회전 전 탐색" 블록이 자동으로 ID7을 찾기 시작한다.
 		// ====================================================
 
 		TagForward_Control();
-
-
-		// ====================================================
-		// ID5-ID6 도달 후
-		// ID5 / ID7 재탐색
-		//
-		// 처음 ID5/ID6 탐색했던 것과 동일한 방식
-		// ====================================================
-
-		if (searching_id7)
-		{
-			HuskyLens_Update();
-
-			id57_distance =
-			CalculateDistanceIDs(5, 7);
-
-			id57_angle =
-			CalculateAngleIDs(5, 7);
-
-			if (id_detected[5] &&
-			id_detected[7])
-			{
-				printf(
-				"ID5: X=%d Y=%d\n",
-				id_x[5],
-				id_y[5]
-				);
-
-				printf(
-				"ID7: X=%d Y=%d\n",
-				id_x[7],
-				id_y[7]
-				);
-
-				printf(
-				"ID5-ID7 DISTANCE: %d PIXEL\n",
-				id57_distance
-				);
-
-				printf(
-				"ID5-ID7 ANGLE: %d DEG\n",
-				id57_angle
-				);
-
-
-				LCD_Clear();
-
-				LCD_SetCursor(0, 0);
-
-				LCD_Print("ANGLE7:");
-
-				LCD_PrintInt(
-				id57_angle
-				);
-
-				LCD_Print("deg");
-
-
-				LCD_SetCursor(1, 0);
-
-				LCD_Print("DIST7:");
-
-				LCD_PrintUInt(
-				id57_distance
-				);
-
-				LCD_Print("px");
-
-
-				_delay_ms(500);
-
-
-				searching_id7 = 0;
-
-				// 두번째 회전 시작
-				StartRotation2();
-			}
-		}
-
-
-		// ====================================================
-		// 두번째 각도 회전 (ID5-ID7)
-		// ====================================================
-
-		Rotation_Control2();
-
-
-		// ====================================================
-		// 두번째 회전 완료 후
-		// ID5-ID7 거리 45 pixel까지 직진
-		//
-		// target_angle2 유지하며 IMU 보정 직진
-		// ====================================================
-
-		TagForward_Control2();
 
 
 		// ====================================================
