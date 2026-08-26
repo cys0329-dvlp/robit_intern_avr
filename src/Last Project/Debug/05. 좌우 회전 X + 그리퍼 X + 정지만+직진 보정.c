@@ -112,6 +112,25 @@
 
 
 // ============================================================
+// 직진 중 IMU 보정 설정
+//
+// 회전 완료 시점의 IMU 각도(target_angle)를
+// 직진 중에도 계속 유지하기 위한 P 제어
+//
+// STRAIGHT_KP
+// → 각도 오차 1도당 좌우 속도를 얼마나 다르게 줄지
+//
+// STRAIGHT_MIN_SPEED / STRAIGHT_MAX_SPEED
+// → 보정 후 실제 모터에 들어가는 속도 제한
+// ============================================================
+
+#define STRAIGHT_KP          6.0
+
+#define STRAIGHT_MIN_SPEED   0
+#define STRAIGHT_MAX_SPEED   255
+
+
+// ============================================================
 // 최종 정지 조건
 //
 // ID5-ID6 거리 45 pixel 이하
@@ -1271,6 +1290,104 @@ void Motor_Forward(uint8_t speed)
 
 
 // ============================================================
+// IMU 기반 직진 보정
+//
+// target_angle(회전 완료 시점의 목표 각도)과
+// 현재 angle_z의 오차만큼
+// 좌우 모터 속도를 다르게 주어서
+// 직진 경로를 유지 (P 제어, 라인트레이싱 방식)
+//
+// error > 0
+// → 로봇이 왼쪽으로 틀어짐 (오른쪽으로 보정 필요)
+// → 왼쪽 바퀴를 느리게, 오른쪽 바퀴를 빠르게
+//
+// error < 0
+// → 로봇이 오른쪽으로 틀어짐 (왼쪽으로 보정 필요)
+// → 오른쪽 바퀴를 느리게, 왼쪽 바퀴를 빠르게
+// ============================================================
+
+void Motor_Forward_Straight(
+uint8_t base_speed,
+float error
+)
+{
+	int16_t correction;
+
+	int16_t left_speed;
+	int16_t right_speed;
+
+	correction =
+	(int16_t)(
+	STRAIGHT_KP * error
+	);
+
+	left_speed =
+	(int16_t)base_speed -
+	correction;
+
+	right_speed =
+	(int16_t)base_speed +
+	correction;
+
+
+	// --------------------------------------------------------
+	// 속도 범위 제한
+	// --------------------------------------------------------
+
+	if (left_speed >
+	STRAIGHT_MAX_SPEED)
+	{
+		left_speed =
+		STRAIGHT_MAX_SPEED;
+	}
+
+	if (left_speed <
+	STRAIGHT_MIN_SPEED)
+	{
+		left_speed =
+		STRAIGHT_MIN_SPEED;
+	}
+
+	if (right_speed >
+	STRAIGHT_MAX_SPEED)
+	{
+		right_speed =
+		STRAIGHT_MAX_SPEED;
+	}
+
+	if (right_speed <
+	STRAIGHT_MIN_SPEED)
+	{
+		right_speed =
+		STRAIGHT_MIN_SPEED;
+	}
+
+
+	// --------------------------------------------------------
+	// 전진 방향 설정
+	// --------------------------------------------------------
+
+	PORTB &=
+	~(1 << LEFT_IN1);
+
+	PORTB |=
+	(1 << LEFT_IN2);
+
+	PORTB &=
+	~(1 << RIGHT_IN1);
+
+	PORTB |=
+	(1 << RIGHT_IN2);
+
+	OCR1A =
+	(uint8_t)left_speed;
+
+	OCR1B =
+	(uint8_t)right_speed;
+}
+
+
+// ============================================================
 // 오른쪽 회전
 // ============================================================
 
@@ -1469,6 +1586,11 @@ void Rotation_Control(void)
 		);
 
 		printf(
+		"TARGET ANGLE (HOLD): %d deg\n",
+		(int)target_angle
+		);
+
+		printf(
 		"TAG DISTANCE FORWARD START\n"
 		);
 
@@ -1519,16 +1641,21 @@ uint8_t TagDistanceReached(void)
 // ============================================================
 // 태그 거리 직진 제어
 //
+// 회전 완료 시점의 target_angle을
+// 그대로 "직진 유지 목표각"으로 사용
+//
+// 직진 중에도 IMU를 계속 읽어서
+// 현재각과 target_angle의 오차만큼
+// 좌우 모터 속도를 보정 (라인트레이싱 방식)
+//
 // 여기서 45 pixel 이하가 되면
 // 모터를 정지하고 전체 과정을 종료
-//
-// PSD 측정 없음
-// 피벗 회전 없음
-// 추가 직진 없음
 // ============================================================
 
 void TagForward_Control(void)
 {
+	float error;
+
 	if (!tag_forward_active)
 	{
 		return;
@@ -1585,11 +1712,25 @@ void TagForward_Control(void)
 
 	// --------------------------------------------------------
 	// 아직 45 pixel보다 큼
-	// 계속 직진
+	//
+	// target_angle 유지하며 직진 (IMU 보정)
 	// --------------------------------------------------------
 
-	Motor_Forward(
-	FORWARD_SPEED
+	error =
+	AngleError(
+	target_angle,
+	angle_z
+	);
+
+	printf(
+	"STRAIGHT ERR: %d deg  IMU: %d deg\n",
+	(int)error,
+	(int)angle_z
+	);
+
+	Motor_Forward_Straight(
+	FORWARD_SPEED,
+	error
 	);
 }
 
@@ -1633,14 +1774,14 @@ void LCD_DisplayStatus(void)
 
 
 	// --------------------------------------------------------
-	// 태그까지 직진
+	// 태그까지 직진 (IMU 유지)
 	// --------------------------------------------------------
 
 	if (tag_forward_active)
 	{
 		LCD_SetCursor(0, 0);
 
-		LCD_Print("TAG DIST:");
+		LCD_Print("DIST:");
 
 		LCD_PrintUInt(
 		id_distance
@@ -1650,7 +1791,19 @@ void LCD_DisplayStatus(void)
 
 		LCD_SetCursor(1, 0);
 
-		LCD_Print("TARGET:45px");
+		LCD_Print("IMU:");
+
+		LCD_PrintInt(
+		(int16_t)angle_z
+		);
+
+		LCD_Print("/");
+
+		LCD_PrintInt(
+		(int16_t)target_angle
+		);
+
+		LCD_Print("deg");
 
 		return;
 	}
@@ -1959,10 +2112,11 @@ int main(void)
 		// ====================================================
 		// IMU 각도 업데이트
 		//
-		// 초기 회전 중에만 사용
+		// 초기 회전 중 + 직진 중(직진 유지 보정용) 모두 사용
 		// ====================================================
 
-		if (rotation_active)
+		if (rotation_active ||
+		tag_forward_active)
 		{
 			MPU6050_UpdateAngle(
 			gyro_z_offset
@@ -2060,6 +2214,8 @@ int main(void)
 		// ====================================================
 		// 회전 완료 후
 		// ID 거리 45 pixel까지 직진
+		//
+		// target_angle 유지하며 IMU 보정 직진
 		// ====================================================
 
 		TagForward_Control();
