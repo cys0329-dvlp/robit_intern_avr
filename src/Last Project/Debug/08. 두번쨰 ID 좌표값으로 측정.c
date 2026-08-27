@@ -182,7 +182,7 @@
 // ============================================================
 
 #define ID5_UPDATE_INTERVAL_MS     200
-#define POSITION_MATCH_TOLERANCE   10
+#define POSITION_MATCH_TOLERANCE   50
 
 
 // ============================================================
