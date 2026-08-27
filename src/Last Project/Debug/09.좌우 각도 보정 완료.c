@@ -2,6 +2,7 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
@@ -33,6 +34,18 @@
 // ============================================================
 
 #define RESET_SWITCH PD2
+
+
+// ============================================================
+// LCD
+// ============================================================
+
+#define LCD_I2C_ADDR 0x27
+
+#define LCD_RS 0x01
+#define LCD_RW 0x02
+#define LCD_EN 0x04
+#define LCD_BL 0x08
 
 
 // ============================================================
@@ -169,7 +182,7 @@
 // ============================================================
 
 #define ID5_UPDATE_INTERVAL_MS     200
-#define POSITION_MATCH_TOLERANCE   10
+#define POSITION_MATCH_TOLERANCE   50
 
 
 // ============================================================
@@ -306,7 +319,7 @@ void LED_SetStage(uint8_t stage)
 
 
 // ============================================================
-// UART0 초기화 (HuskyLens 통신용)
+// UART0 초기화
 // ============================================================
 
 void UART0_Init(void)
@@ -378,6 +391,40 @@ void UART0_ClearBuffer(void)
 		(void)dummy;
 	}
 }
+
+
+// ============================================================
+// UART printf
+// ============================================================
+
+void UART0_TX(char data)
+{
+	UART0_SendByte(data);
+}
+
+
+int UART0_putchar(
+char c,
+FILE *stream
+)
+{
+	if (c == '\n')
+	{
+		UART0_TX('\r');
+	}
+
+	UART0_TX(c);
+
+	return 0;
+}
+
+
+FILE UART0_OUTPUT =
+FDEV_SETUP_STREAM(
+UART0_putchar,
+NULL,
+_FDEV_SETUP_WRITE
+);
 
 
 // ============================================================
@@ -1074,6 +1121,242 @@ uint8_t ID5_ReachedTarget7(void)
 
 
 // ============================================================
+// LCD Expander
+// ============================================================
+
+void LCD_ExpanderWrite(uint8_t data)
+{
+	TWI_Start();
+
+	TWI_Write(
+	(LCD_I2C_ADDR << 1)
+	);
+
+	TWI_Write(
+	data | LCD_BL
+	);
+
+	TWI_Stop();
+}
+
+
+// ============================================================
+// LCD Enable
+// ============================================================
+
+void LCD_Enable(uint8_t data)
+{
+	LCD_ExpanderWrite(
+	data | LCD_EN
+	);
+
+	_delay_us(1);
+
+	LCD_ExpanderWrite(
+	data & ~LCD_EN
+	);
+
+	_delay_us(50);
+}
+
+
+// ============================================================
+// LCD 4bit
+// ============================================================
+
+void LCD_Send4Bit(uint8_t data)
+{
+	LCD_ExpanderWrite(data);
+
+	LCD_Enable(data);
+}
+
+
+// ============================================================
+// LCD Command
+// ============================================================
+
+void LCD_SendCommand(uint8_t command)
+{
+	uint8_t high;
+	uint8_t low;
+
+	high =
+	command & 0xF0;
+
+	low =
+	(command << 4) & 0xF0;
+
+	LCD_Send4Bit(high);
+
+	LCD_Send4Bit(low);
+
+	if (command == 0x01 ||
+	command == 0x02)
+	{
+		_delay_ms(2);
+	}
+}
+
+
+// ============================================================
+// LCD Data
+// ============================================================
+
+void LCD_SendData(uint8_t data)
+{
+	uint8_t high;
+	uint8_t low;
+
+	high =
+	(data & 0xF0) |
+	LCD_RS;
+
+	low =
+	((data << 4) & 0xF0) |
+	LCD_RS;
+
+	LCD_Send4Bit(high);
+
+	LCD_Send4Bit(low);
+}
+
+
+// ============================================================
+// LCD Init
+// ============================================================
+
+void LCD_Init(void)
+{
+	_delay_ms(50);
+
+	LCD_Send4Bit(0x30);
+	_delay_ms(5);
+
+	LCD_Send4Bit(0x30);
+	_delay_us(150);
+
+	LCD_Send4Bit(0x30);
+
+	LCD_Send4Bit(0x20);
+
+	LCD_SendCommand(0x28);
+
+	LCD_SendCommand(0x0C);
+
+	LCD_SendCommand(0x06);
+
+	LCD_SendCommand(0x01);
+
+	_delay_ms(2);
+}
+
+
+// ============================================================
+// LCD Clear
+// ============================================================
+
+void LCD_Clear(void)
+{
+	LCD_SendCommand(0x01);
+
+	_delay_ms(2);
+}
+
+
+// ============================================================
+// LCD Cursor
+// ============================================================
+
+void LCD_SetCursor(
+uint8_t row,
+uint8_t col
+)
+{
+	uint8_t address;
+
+	if (row == 0)
+	{
+		address =
+		0x80 + col;
+	}
+	else
+	{
+		address =
+		0xC0 + col;
+	}
+
+	LCD_SendCommand(address);
+}
+
+
+// ============================================================
+// LCD 문자열
+// ============================================================
+
+void LCD_Print(const char *str)
+{
+	while (*str)
+	{
+		LCD_SendData(*str++);
+	}
+}
+
+
+// ============================================================
+// LCD UInt
+// ============================================================
+
+void LCD_PrintUInt(uint16_t value)
+{
+	char buffer[6];
+
+	uint8_t i = 0;
+
+	if (value == 0)
+	{
+		LCD_SendData('0');
+
+		return;
+	}
+
+	while (value > 0)
+	{
+		buffer[i++] =
+		'0' + (value % 10);
+
+		value /= 10;
+	}
+
+	while (i > 0)
+	{
+		LCD_SendData(
+		buffer[--i]
+		);
+	}
+}
+
+
+// ============================================================
+// LCD Int
+// ============================================================
+
+void LCD_PrintInt(int16_t value)
+{
+	if (value < 0)
+	{
+		LCD_SendData('-');
+
+		value = -value;
+	}
+
+	LCD_PrintUInt(
+	(uint16_t)value
+	);
+}
+
+
+// ============================================================
 // 모터 + 그리퍼 서보 공용 Timer1 초기화
 //
 // OC1A(왼쪽모터) / OC1B(오른쪽모터) / OC1C(그리퍼서보)는
@@ -1460,7 +1743,12 @@ void StartRotation(void)
 
 	target_angle =
 	(float)id_angle;
-
+	
+	if (id_angle < 0)
+	{
+		target_angle = (float)id_angle + 30.0;
+	}
+	
 	rotation_active = 1;
 	rotation_finished = 0;
 
@@ -1468,6 +1756,16 @@ void StartRotation(void)
 	tag_forward_finished = 0;
 
 	LED_SetStage(6);
+
+	printf(
+	"ROTATION START (ID5->ID%d)\n",
+	current_target_id
+	);
+
+	printf(
+	"TARGET ANGLE: %d deg\n",
+	id_angle
+	);
 }
 
 
@@ -1506,6 +1804,25 @@ void Rotation_Control(void)
 		id5_update_timer_ms = 0;
 
 		LED_SetStage(7);
+
+		printf(
+		"ROTATION COMPLETE (ID5->ID%d)\n",
+		current_target_id
+		);
+
+		printf(
+		"IMU ANGLE: %d deg\n",
+		(int)angle_z
+		);
+
+		printf(
+		"TARGET ANGLE (HOLD): %d deg\n",
+		(int)target_angle
+		);
+
+		printf(
+		"TAG DISTANCE FORWARD START\n"
+		);
 
 		_delay_ms(300);
 
@@ -1561,11 +1878,21 @@ uint8_t TagDistanceReached(void)
 
 void Gripper_PostStopSequence(void)
 {
+	printf(
+	"EXTRA FORWARD %dms\n",
+	POST_STOP_FORWARD_MS
+	);
+
 	Motor_Forward(FORWARD_SPEED);
 
 	_delay_ms(POST_STOP_FORWARD_MS);
 
 	Motor_Stop();
+
+	printf(
+	"GRIPPER ROTATE TO %ddeg\n",
+	GRIPPER_CLOSE_ANGLE
+	);
 
 	Servo_SetAngle(GRIPPER_CLOSE_ANGLE);
 
@@ -1648,6 +1975,14 @@ void TagForward_Control(void)
 		// 전체 블록을 갱신해야 한다 (ID7은 더 이상 사용하지 않음).
 		HuskyLens_Update();
 
+		printf(
+		"ID5 POS: X=%d Y=%d / TARGET7 X=%d Y=%d\n",
+		id_x[5],
+		id_y[5],
+		target7_x,
+		target7_y
+		);
+
 		if (ID5_ReachedTarget7())
 		{
 			Motor_Stop();
@@ -1659,8 +1994,33 @@ void TagForward_Control(void)
 
 			STAGE_LED_PORT = 0xFF;
 
+			printf(
+			"================================\n"
+			);
+
+			printf(
+			"ID5 POSITION == TARGET7 POSITION\n"
+			);
+
+			printf(
+			"MOTOR STOP\n"
+			);
+
 			Servo_SetAngle(
 			GRIPPER_OPEN_ANGLE
+			);
+
+			printf(
+			"GRIPPER RESET TO %ddeg\n",
+			GRIPPER_OPEN_ANGLE
+			);
+
+			printf(
+			"FULL PROCESS COMPLETE\n"
+			);
+
+			printf(
+			"================================\n"
 			);
 
 			return;
@@ -1697,7 +2057,39 @@ void TagForward_Control(void)
 		tag_forward_active = 0;
 		tag_forward_finished = 1;
 
+		printf(
+		"================================\n"
+		);
+
+		printf(
+		"ID5-ID%d DISTANCE <= %d PIXEL\n",
+		current_target_id,
+		TAG_DISTANCE_STOP
+		);
+
+		printf(
+		"ID5-ID%d DISTANCE: %d PIXEL\n",
+		current_target_id,
+		id_distance
+		);
+
+		printf(
+		"MOTOR STOP\n"
+		);
+
+		printf(
+		"STAGE 1 COMPLETE\n"
+		);
+
 		Gripper_PostStopSequence();
+
+		printf(
+		"RESTART FROM BEGINNING FOR ID7\n"
+		);
+
+		printf(
+		"================================\n"
+		);
 
 		current_target_id = 7;
 
@@ -1733,10 +2125,190 @@ void TagForward_Control(void)
 	angle_z
 	);
 
+	printf(
+	"STRAIGHT ERR: %d deg  IMU: %d deg\n",
+	(int)error,
+	(int)angle_z
+	);
+
 	Motor_Forward_Straight(
 	FORWARD_SPEED,
 	error
 	);
+}
+
+
+// ============================================================
+// LCD 상태 표시
+// ============================================================
+
+void LCD_DisplayStatus(void)
+{
+	LCD_Clear();
+
+	// --------------------------------------------------------
+	// 회전 중 (ID5-현재 목표)
+	// --------------------------------------------------------
+
+	if (rotation_active)
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("TGT");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
+
+		LCD_PrintInt(
+		(int16_t)target_angle
+		);
+
+		LCD_Print("deg");
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("IMU:");
+
+		LCD_PrintInt(
+		(int16_t)angle_z
+		);
+
+		LCD_Print("deg");
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 태그까지 직진 중 (ID5-현재 목표, IMU 유지)
+	//
+	// ID7 단계에서는 픽셀 거리 대신 ID5/TARGET7 좌표를 보여준다.
+	// --------------------------------------------------------
+
+	if (tag_forward_active)
+	{
+		if (current_target_id == 7)
+		{
+			LCD_SetCursor(0, 0);
+
+			LCD_Print("ID5:");
+
+			LCD_PrintUInt(id_x[5]);
+
+			LCD_Print(",");
+
+			LCD_PrintUInt(id_y[5]);
+
+			LCD_SetCursor(1, 0);
+
+			LCD_Print("TG7:");
+
+			LCD_PrintUInt(target7_x);
+
+			LCD_Print(",");
+
+			LCD_PrintUInt(target7_y);
+
+			return;
+		}
+
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("DIST");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
+
+		LCD_PrintUInt(
+		id_distance
+		);
+
+		LCD_Print("px");
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("IMU:");
+
+		LCD_PrintInt(
+		(int16_t)angle_z
+		);
+
+		LCD_Print("/");
+
+		LCD_PrintInt(
+		(int16_t)target_angle
+		);
+
+		LCD_Print("deg");
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 최종 완료 (ID5-ID7 좌표 일치)
+	// --------------------------------------------------------
+
+	if (process_finished)
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("STOPPED");
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("ID5==TG7");
+
+		return;
+	}
+
+
+	// --------------------------------------------------------
+	// 현재 목표(ID6 또는 ID7) 탐색 대기
+	// --------------------------------------------------------
+
+	if (id_detected[5] &&
+	id_detected[current_target_id])
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("ANGLE");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_Print(":");
+
+		LCD_PrintInt(
+		id_angle
+		);
+
+		LCD_Print("deg");
+
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("DIST:");
+
+		LCD_PrintUInt(
+		id_distance
+		);
+
+		LCD_Print("px");
+	}
+	else
+	{
+		LCD_SetCursor(0, 0);
+
+		LCD_Print("ID5/ID");
+
+		LCD_PrintUInt(current_target_id);
+
+		LCD_SetCursor(1, 0);
+
+		LCD_Print("Searching...");
+	}
 }
 
 
@@ -1758,15 +2330,35 @@ int main(void)
 
 	LED_SetStage(1);
 
-	UART0_Init();   // HuskyLens 통신용
+	UART0_Init();
+
+	stdout =
+	&UART0_OUTPUT;
 
 	TWI_Init();
 
 	ResetSwitch_Init();
 
+	LCD_Init();
+
 	Motor_Init();   // 모터 + 그리퍼 서보(0도) 초기화 포함
 
 	ADC_Init();
+
+
+	LCD_Clear();
+
+	LCD_SetCursor(0, 0);
+
+	LCD_Print("HuskyLens + IMU");
+
+	LCD_SetCursor(1, 0);
+
+	LCD_Print("Initializing...");
+
+
+	printf("\n");
+	printf("SYSTEM INITIALIZING\n");
 
 
 	// ========================================================
@@ -1777,6 +2369,21 @@ int main(void)
 	MPU6050_Init();
 
 	LED_SetStage(2);
+
+	printf(
+	"MPU6050 INITIALIZED\n"
+	);
+
+
+	LCD_Clear();
+
+	LCD_SetCursor(0, 0);
+
+	LCD_Print("MPU6050");
+
+	LCD_SetCursor(1, 0);
+
+	LCD_Print("Initialized");
 
 	_delay_ms(500);
 
@@ -1795,8 +2402,49 @@ int main(void)
 
 	LED_SetStage(3);
 
+	LCD_Clear();
+
+	LCD_SetCursor(0, 0);
+
+	LCD_Print("GYRO CALIBRATE");
+
+	LCD_SetCursor(1, 0);
+
+	LCD_Print("Keep still");
+
+
+	printf(
+	"GYRO CALIBRATION\n"
+	);
+
+	printf(
+	"Keep sensor still...\n"
+	);
+
+
 	gyro_z_offset =
 	MPU6050_Calibrate_GyroZ();
+
+
+	printf(
+	"Offset: %d\n",
+	gyro_z_offset
+	);
+
+	printf(
+	"Calibration Complete!\n"
+	);
+
+
+	LCD_Clear();
+
+	LCD_SetCursor(0, 0);
+
+	LCD_Print("Calibration");
+
+	LCD_SetCursor(1, 0);
+
+	LCD_Print("Complete!");
 
 	_delay_ms(1000);
 
@@ -1816,6 +2464,21 @@ int main(void)
 	current_target_id = 6;
 
 	LED_SetStage(4);
+
+	LCD_Clear();
+
+	LCD_SetCursor(0, 0);
+
+	LCD_Print("HuskyLens");
+
+	LCD_SetCursor(1, 0);
+
+	LCD_Print("Searching...");
+
+
+	printf(
+	"HUSKYLENS SEARCHING\n"
+	);
 
 
 	// ========================================================
@@ -1857,7 +2520,21 @@ int main(void)
 
 			Servo_SetAngle(GRIPPER_OPEN_ANGLE);   // 그리퍼도 0도로 리셋
 
+			printf(
+			"FULL PROCESS RESET\n"
+			);
+
 			LED_SetStage(4);
+
+			LCD_Clear();
+
+			LCD_SetCursor(0, 0);
+
+			LCD_Print("SYSTEM RESET");
+
+			LCD_SetCursor(1, 0);
+
+			LCD_Print("Searching...");
 
 
 			while (!(PIND &
@@ -1877,6 +2554,8 @@ int main(void)
 		if (process_finished)
 		{
 			Motor_Stop();
+
+			LCD_DisplayStatus();
 
 			_delay_ms(100);
 
@@ -1931,6 +2610,29 @@ int main(void)
 			{
 				LED_SetStage(5);
 
+				printf(
+				"ID5: X=%d Y=%d\n",
+				id_x[5],
+				id_y[5]
+				);
+
+				printf(
+				"ID%d: X=%d Y=%d\n",
+				current_target_id,
+				id_x[current_target_id],
+				id_y[current_target_id]
+				);
+
+				printf(
+				"ID DISTANCE: %d PIXEL\n",
+				id_distance
+				);
+
+				printf(
+				"ID ANGLE: %d DEG\n",
+				id_angle
+				);
+
 
 				// ID5-ID7 단계: ID7 좌표를 여기서 한 번만 고정 저장
 				if (current_target_id == 7 &&
@@ -1940,7 +2642,37 @@ int main(void)
 					target7_y = id_y[7];
 
 					target7_saved = 1;
+
+					printf(
+					"TARGET7 SAVED: X=%d Y=%d\n",
+					target7_x,
+					target7_y
+					);
 				}
+
+
+				LCD_Clear();
+
+				LCD_SetCursor(0, 0);
+
+				LCD_Print("ANGLE:");
+
+				LCD_PrintInt(
+				id_angle
+				);
+
+				LCD_Print("deg");
+
+
+				LCD_SetCursor(1, 0);
+
+				LCD_Print("DIST:");
+
+				LCD_PrintUInt(
+				id_distance
+				);
+
+				LCD_Print("px");
 
 
 				_delay_ms(500);
@@ -1972,6 +2704,13 @@ int main(void)
 		// ====================================================
 
 		TagForward_Control();
+
+
+		// ====================================================
+		// 상태 표시
+		// ====================================================
+
+		LCD_DisplayStatus();
 
 
 		// ====================================================
