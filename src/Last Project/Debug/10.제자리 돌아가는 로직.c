@@ -182,16 +182,22 @@
 // ============================================================
 
 #define ID5_UPDATE_INTERVAL_MS     200
-#define POSITION_MATCH_TOLERANCE   50
+#define POSITION_MATCH_TOLERANCE   40
 
 
 // ============================================================
 // ID7 도달 후 HOME 복귀 설정
 //
-// 1. 그리퍼 오픈 후 RETURN_BACKUP_MS 동안 후진
-// 2. 처음(TARGET7 저장 시점)의 ID5 좌표(HOME)로 회전 + 직진 복귀
+// 1. 그리퍼 오픈
+// 2. 그 자리에서 ID7_STOP_WAIT_MS(2초) 정지
+// 3. RETURN_BACKUP_MS(1초) 동안 후진
+// 4. 다시 정지한 상태에서 HuskyLens로 ID5 좌표를 새로 읽고
+//    (맨 처음 저장해 둔) HOME 좌표까지의 각도를 계산
+//    -> 계산이 끝날 때까지 로봇은 정지 상태를 유지한다.
+// 5. 계산된 각도로 회전 + 직진해서 HOME으로 복귀
 // ============================================================
 
+#define ID7_STOP_WAIT_MS   2000
 #define RETURN_BACKUP_MS   1000
 
 
@@ -301,7 +307,9 @@ uint16_t id5_update_timer_ms = 0;
 // ============================================================
 // HOME 복귀 전용 상태
 //
-// home_x/y   : TARGET7 저장 시점의 ID5 좌표 (출발 위치)
+// home_x/y   : 전체 과정 중 "맨 처음" 인식된 ID5 좌표 (출발 위치)
+//              -> ID6 탐색 단계에서 ID5가 최초로 인식되는 시점에
+//                 딱 한 번만 저장한다 (물체를 잡는 시점과 무관).
 // home_saved : 저장 여부
 //
 // returning_home        : 전체 복귀 시퀀스 진행 중 여부
@@ -1595,9 +1603,8 @@ void Motor_Forward(uint8_t speed)
 // ============================================================
 // 후진
 //
-// HOME 복귀 시퀀스 진입 전, ID7 지점에서 그리퍼를 연 뒤
-// 잠깐 뒤로 빠지기 위한 함수. IN1/IN2 극성을 Motor_Forward와
-// 반대로 설정한다.
+// ID7 지점에서 그리퍼를 연 뒤 잠깐 뒤로 빠지기 위한 함수.
+// IN1/IN2 극성을 Motor_Forward와 반대로 설정한다.
 // ============================================================
 
 void Motor_Backward(uint8_t speed)
@@ -2078,6 +2085,9 @@ void Gripper_PostStopSequence(void)
 // 향하는 각도를 계산해서 회전을 시작한다.
 // 왼쪽 회전 보정(StartRotation과 동일한 -30도 보정)도
 // 여기서 동일하게 적용한다.
+//
+// 호출 전에 반드시 최신 id_x[5]/id_y[5] (HuskyLens_Update 직후)를
+// 사용해야 실제 정지 위치 기준으로 정확한 복귀 각도가 나온다.
 // ============================================================
 
 void ReturnHome_Start(void)
@@ -2109,6 +2119,18 @@ void ReturnHome_Start(void)
 
 	printf(
 	"RETURN ROTATION START\n"
+	);
+
+	printf(
+	"CURRENT ID5: X=%d Y=%d\n",
+	id_x[5],
+	id_y[5]
+	);
+
+	printf(
+	"HOME TARGET: X=%d Y=%d\n",
+	home_x,
+	home_y
 	);
 
 	printf(
@@ -2306,11 +2328,15 @@ void ReturnForward_Control(void)
 // [ID7 단계]
 //   - ID7 좌표는 회전 시작 직전(각도 계산 시점)에
 //     target7_x/y 로 이미 고정 저장되어 있음 (더 이상 갱신 안 함)
-//     이때 ID5 좌표도 home_x/y 로 함께 고정 저장해 둔다.
 //   - ID5 좌표만 0.2초 주기로 계속 갱신
 //   - ID5 좌표가 target7_x/y 와 일치(오차범위 이내)하면
-//     -> 정지, 그리퍼 오픈, 0.5초? -> 1초 후진
-//     -> HOME(home_x/y) 방향으로 회전 후 직진해서 복귀
+//     -> 정지, 그리퍼 오픈
+//     -> 그 자리에서 ID7_STOP_WAIT_MS(2초) 정지
+//     -> RETURN_BACKUP_MS(1초) 후진 후 다시 정지
+//     -> 정지 상태에서 HuskyLens_Update로 ID5 좌표를 새로 읽고
+//        (맨 처음 저장해 둔) HOME(home_x/y) 방향 각도를 계산
+//        (이 계산이 끝날 때까지 로봇은 계속 정지 상태)
+//     -> 계산된 각도로 회전 후 직진해서 HOME으로 복귀
 //     -> HOME 좌표 도달 시 전체 과정 종료 (process_finished = 1)
 // ------------------------------------------------------------
 
@@ -2396,12 +2422,18 @@ void TagForward_Control(void)
 			);
 
 			// ----------------------------------------------
-			// ID7 도달 + 그리퍼 오픈 이후:
-			// 1초 후진 -> HOME 복귀 시퀀스 시작
-			//
-			// 여기서는 process_finished를 세우지 않는다.
-			// 전체 종료는 ReturnForward_Control에서
-			// HOME 좌표에 도달했을 때 처리한다.
+			// 그리퍼 오픈 후 그 자리에서 2초 정지
+			// ----------------------------------------------
+
+			printf(
+			"WAIT %dms AFTER GRIPPER OPEN\n",
+			ID7_STOP_WAIT_MS
+			);
+
+			_delay_ms(ID7_STOP_WAIT_MS);
+
+			// ----------------------------------------------
+			// 1초 후진
 			// ----------------------------------------------
 
 			printf(
@@ -2414,6 +2446,23 @@ void TagForward_Control(void)
 			_delay_ms(RETURN_BACKUP_MS);
 
 			Motor_Stop();
+
+			// ----------------------------------------------
+			// 다시 정지한 상태에서 ID5 좌표를 새로 읽고
+			// (후진으로 위치가 바뀌었으므로 기존 id_x[5]/id_y[5]는
+			//  낡은 값이다) HOME 방향 각도를 계산한다.
+			// 계산이 끝날 때까지 로봇은 정지 상태를 유지한다.
+			// ----------------------------------------------
+
+			printf(
+			"CALCULATING RETURN ANGLE (STOPPED)\n"
+			);
+
+			HuskyLens_Update();
+
+			// 여기서는 process_finished를 세우지 않는다.
+			// 전체 종료는 ReturnForward_Control에서
+			// HOME 좌표에 도달했을 때 처리한다.
 
 			returning_home = 1;
 
@@ -2506,9 +2555,9 @@ void TagForward_Control(void)
 		// (다음 탐색 블록에서 각도 계산 시점에 다시 저장됨)
 		target7_saved = 0;
 
-		// HOME 좌표도 ID7 좌표와 같은 시점에 다시 저장되므로
-		// 여기서 저장 여부만 초기화해 둔다.
-		home_saved = 0;
+		// HOME 좌표(home_x/y, home_saved)는 여기서 건드리지 않는다.
+		// HOME은 전체 과정 중 "맨 처음" ID5 좌표로 이미 고정되어 있고
+		// ID6->ID7 전환 시점(물체를 잡는 시점)과는 무관해야 하기 때문.
 
 		id5_update_timer_ms = 0;
 
@@ -2983,6 +3032,8 @@ int main(void)
 			id5_update_timer_ms = 0;
 
 			// HOME 복귀 관련 상태 초기화
+			// (home_saved도 0으로 초기화해서, 리셋 후 다음 사이클에
+			//  다시 "맨 처음" ID5 좌표를 새로 저장하도록 한다)
 			home_saved = 0;
 			returning_home = 0;
 
@@ -3062,12 +3113,16 @@ int main(void)
 		// ID5-ID6 단계, ID5-ID7 단계 모두
 		// 완전히 동일한 이 블록을 그대로 재사용한다.
 		//
+		// HOME 좌표(home_x/y)는 전체 과정 중 "맨 처음" ID5가
+		// 인식되는 시점(즉, home_saved가 아직 0일 때)에만
+		// 딱 한 번 저장한다. current_target_id가 6이든 7이든
+		// 상관없이 여기서 최초 1회만 저장되므로, ID6->ID7 전환
+		// (물체를 잡는 시점)과는 완전히 분리된다.
+		//
 		// current_target_id == 7 인 경우, 여기서 각도를
 		// 계산하는 시점에 ID7 좌표를 target7_x/y 로 고정
 		// 저장해 둔다 (이후 직진 중에는 ID7 좌표를 다시
 		// 읽지 않고 이 값만 기준으로 사용).
-		// 이때 현재 ID5 좌표도 home_x/y 로 함께 고정
-		// 저장해 둔다 (이후 HOME 복귀 시 사용).
 		// ====================================================
 
 		if (!rotation_active &&
@@ -3113,7 +3168,28 @@ int main(void)
 				);
 
 
-				// ID5-ID7 단계: ID7 좌표와 ID5(HOME) 좌표를
+				// --------------------------------------
+				// HOME 좌표: 전체 과정 중 "맨 처음"
+				// 인식된 ID5 좌표를 딱 한 번만 저장
+				// (current_target_id와 무관)
+				// --------------------------------------
+
+				if (!home_saved)
+				{
+					home_x = id_x[5];
+					home_y = id_y[5];
+
+					home_saved = 1;
+
+					printf(
+					"HOME SAVED (INITIAL ID5): X=%d Y=%d\n",
+					home_x,
+					home_y
+					);
+				}
+
+
+				// ID5-ID7 단계: ID7 좌표를
 				// 여기서 한 번만 고정 저장
 				if (current_target_id == 7 &&
 				!target7_saved)
@@ -3123,21 +3199,10 @@ int main(void)
 
 					target7_saved = 1;
 
-					home_x = id_x[5];
-					home_y = id_y[5];
-
-					home_saved = 1;
-
 					printf(
 					"TARGET7 SAVED: X=%d Y=%d\n",
 					target7_x,
 					target7_y
-					);
-
-					printf(
-					"HOME SAVED: X=%d Y=%d\n",
-					home_x,
-					home_y
 					);
 				}
 
@@ -3187,7 +3252,8 @@ int main(void)
 		//
 		// ID6: 픽셀 거리 45 이하에서 정지 (기존과 동일)
 		// ID7: ID5 좌표 == 저장된 TARGET7 좌표에서 정지
-		//      -> 그리퍼 오픈 -> 후진 -> HOME 복귀 시작
+		//      -> 그리퍼 오픈 -> 2초 정지 -> 1초 후진 -> 정지
+		//      -> 좌표 재계산 -> HOME 복귀 시작
 		//
 		// ID6 완료 시 Gripper_PostStopSequence() 실행 후
 		// current_target_id 가 7로 바뀌고 상태가 전부 리셋되므로,
