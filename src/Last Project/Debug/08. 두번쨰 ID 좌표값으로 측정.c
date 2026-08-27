@@ -121,8 +121,8 @@
 // 회전 / 직진 설정
 // ============================================================
 
-#define TURN_SPEED          180
-#define FORWARD_SPEED       180
+#define TURN_SPEED          150
+#define FORWARD_SPEED       150
 
 #define ANGLE_TOLERANCE     2.0
 
